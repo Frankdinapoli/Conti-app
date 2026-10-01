@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Conti">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>Conti</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icon.svg" alt="" width="28" height="28">
+      <span>Conti</span>
+    </div>
+    <nav class="month-nav" id="month-nav" hidden>
+      <div class="segmented" id="view-switch" role="tablist" aria-label="Periodo">
+        <button role="tab" data-view="mese" aria-selected="true">Mese</button>
+        <button role="tab" data-view="anno" aria-selected="false">Anno</button>
+      </div>
+      <button class="icon-btn" id="prev-month" aria-label="Mese precedente">‹</button>
+      <select id="month-select" aria-label="Mese"></select>
+      <button class="icon-btn" id="next-month" aria-label="Mese successivo">›</button>
+    </nav>
+    <div class="top-actions">
+      <span class="chip" id="status-chip" hidden></span>
+      <button class="btn ghost" id="refresh" title="Scarica di nuovo i dati da GitHub">Aggiorna</button>
+      <button class="btn ghost" id="quit" title="Cancella il token da questo telefono">Scollega</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <section class="loading" id="loading">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Scarico i dati da GitHub…</p>
+    </section>
+
+    <section class="center-card" id="setup" hidden>
+      <div class="card setup">
+        <img src="icon.svg" alt="" width="56" height="56">
+        <h1>Collega Conti a GitHub</h1>
+        <p class="muted">Serve una chiave di accesso al solo repository <code>Frankdinapoli/Conti</code>.
+          Resta solo su questo telefono; i movimenti non vengono salvati qui.</p>
+        <ol class="steps">
+          <li>Apri <strong>github.com → foto profilo → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</strong>
+            (anche dal Mac: poi copia sul Mac e incolla qui con gli Appunti condivisi; non mandarlo via chat o email).</li>
+          <li>Nome: <em>Conti iPhone</em> · Scadenza: 1 anno · <strong>Repository access</strong>: <em>Only select repositories</em> → <code>Conti</code>.</li>
+          <li><strong>Permissions → Repository permissions → Contents</strong>: <em>Read and write</em> per registrare contanti e correggere
+            categorie, oppure <em>Read-only</em> per guardare soltanto. Nient'altro.</li>
+          <li><strong>Generate token</strong>, copialo e incollalo qui sotto.</li>
+        </ol>
+        <p class="muted small">Usa un token diverso da quello del Mac: se perdi il telefono lo revochi da GitHub senza toccare il Mac.</p>
+        <form id="token-form" autocomplete="off">
+          <input id="token-input" type="password" placeholder="github_pat_…" spellcheck="false" aria-label="Token GitHub">
+          <button class="btn primary" type="submit">Collega</button>
+        </form>
+        <p class="error" id="setup-error" hidden></p>
+      </div>
+    </section>
+
+    <section class="center-card" id="error" hidden>
+      <div class="card setup">
+        <h1>Qualcosa non va</h1>
+        <p class="muted" id="error-text"></p>
+        <button class="btn primary" id="retry">Riprova</button>
+      </div>
+    </section>
+
+    <div id="dashboard" hidden>
+      <div class="notice" id="month-notice" hidden></div>
+
+      <section class="tiles" id="tiles"></section>
+
+      <section class="grid">
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Entrate e uscite</h2>
+              <p class="muted small">Ultimi mesi · clicca un mese per aprirlo</p>
+            </div>
+            <div class="legend" id="trend-legend"></div>
+          </header>
+          <div class="chart" id="trend-chart"></div>
+          <h3 class="subhead">Saldo del mese</h3>
+          <div class="chart short" id="saldo-chart"></div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Spese per categoria</h2>
+              <p class="muted small" id="cat-sub"></p>
+            </div>
+          </header>
+          <div id="cat-chart" class="hbars"></div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Budget</h2>
+              <p class="muted small">Si modificano in <code>config/budget.toml</code> su GitHub</p>
+            </div>
+          </header>
+          <div id="budget-list" class="budgets"></div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Tra i tuoi conti</h2>
+              <p class="muted small">Non sono né entrate né uscite: i soldi restano tuoi</p>
+            </div>
+          </header>
+          <div id="internal-list"></div>
+        </article>
+
+        <article class="card" id="wallet-card" hidden>
+          <header class="card-head">
+            <div>
+              <h2>Portafoglio contanti</h2>
+              <p class="muted small">Prelievi al bancomat meno spese in contanti registrate</p>
+            </div>
+            <button class="btn" id="add-cash-2" type="button">+ Contanti</button>
+          </header>
+          <div id="wallet-body"></div>
+        </article>
+      </section>
+
+      <article class="card wide" id="year-card" hidden>
+        <header class="card-head">
+          <div>
+            <h2>Mese per mese</h2>
+            <p class="muted small">Clicca un mese per aprirlo</p>
+          </div>
+        </header>
+        <div id="year-body"></div>
+      </article>
+
+      <article class="card wide" id="tx-card">
+        <header class="card-head wrap">
+          <div>
+            <h2>Movimenti</h2>
+            <p class="muted small" id="tx-sub"></p>
+          </div>
+          <div class="filters">
+            <div class="segmented" id="group-filter" role="tablist"></div>
+            <select id="cat-filter" aria-label="Categoria"></select>
+            <input id="search" type="search" placeholder="Cerca…" aria-label="Cerca nei movimenti">
+            <label class="check"><input type="checkbox" id="all-months"> Tutti i mesi</label>
+            <button class="btn primary" id="add-cash" type="button">+ Contanti</button>
+          </div>
+        </header>
+        <div class="table-wrap">
+          <table class="tx">
+            <thead><tr><th>Data</th><th>Descrizione</th><th>Categoria</th><th>Banca</th><th class="num">Importo</th></tr></thead>
+            <tbody id="tx-body"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <footer class="foot" id="foot"></footer>
+    </div>
+  </main>
+
+  <dialog id="edit-dialog" aria-labelledby="edit-title">
+    <form method="dialog" id="edit-form">
+      <h2 id="edit-title">Cambia categoria</h2>
+      <p class="edit-desc" id="edit-desc"></p>
+      <label class="field">
+        <span>Categoria</span>
+        <input id="edit-cat" list="cat-list" autocomplete="off" spellcheck="false" required maxlength="40">
+        <datalist id="cat-list"></datalist>
+        <small class="muted">Scegli dall'elenco o scrivi il nome di una categoria nuova.</small>
+      </label>
+      <fieldset class="scope" id="edit-scope">
+        <label><input type="radio" name="scope" value="esercente" checked> <span id="scope-merchant"></span></label>
+        <label><input type="radio" name="scope" value="movimento"> Solo questo movimento</label>
+      </fieldset>
+      <p class="hint" id="edit-hint"></p>
+      <div class="error" id="edit-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="edit-reset" hidden>Ripristina automatico</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="edit-cancel">Annulla</button>
+        <button type="submit" class="btn primary" id="edit-save">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="cash-dialog" aria-labelledby="cash-title">
+    <form method="dialog" id="cash-form" autocomplete="off">
+      <h2 id="cash-title">Registra contanti</h2>
+      <div class="segmented tipo" role="radiogroup" aria-label="Tipo">
+        <label><input type="radio" name="tipo" value="spesa" checked><span>Spesa</span></label>
+        <label><input type="radio" name="tipo" value="entrata"><span>Entrata</span></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Importo</span><input id="cash-amount" inputmode="decimal" placeholder="0,00" required pattern="[0-9]+([.,][0-9]{1,2})?"></label>
+        <label class="field narrow"><span>Valuta</span>
+          <select id="cash-currency"><option>EUR</option><option>DKK</option><option>SEK</option><option>NOK</option><option>CHF</option><option>GBP</option><option>USD</option></select>
+        </label>
+        <label class="field narrow"><span>Data</span><input id="cash-date" type="date" required></label>
+      </div>
+      <label class="field"><span>Descrizione</span><input id="cash-desc" maxlength="80" placeholder="es. Caffè al bar" required></label>
+      <label class="field"><span>Categoria</span><input id="cash-cat" list="cash-cat-list" maxlength="40" placeholder="es. Ristoranti e bar" required>
+        <datalist id="cash-cat-list"></datalist></label>
+      <div class="error" id="cash-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost danger" id="cash-delete" hidden>Elimina</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="cash-cancel">Annulla</button>
+        <button type="submit" class="btn primary" id="cash-save">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script src="telefono.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
