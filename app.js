@@ -110,7 +110,31 @@ async function load(refresh = false) {
   buildMonthSelect();
   show("dashboard");
   render();
+  checkUpdate();
 }
+
+// ── aggiornamento dell'app del Mac (il telefono si aggiorna da solo) ────
+async function checkUpdate() {
+  if (PHONE) return;
+  const { ok, payload } = await api("/api/aggiornamento");
+  $("update-banner").hidden = !(ok && payload.stato === "disponibile");
+}
+$("update-btn").addEventListener("click", async () => {
+  const btn = $("update-btn");
+  btn.disabled = true;
+  $("update-text").textContent = "Aggiornamento in corso: verifico e scarico la versione nuova…";
+  const { ok, payload } = await api("/api/aggiorna", {});
+  if (!ok) {
+    btn.disabled = false;
+    $("update-banner").classList.add("critical");
+    $("update-text").textContent = `Aggiornamento non riuscito: ${payload.errore || "riprova più tardi"}.`;
+    return;
+  }
+  document.body.replaceChildren(h("main", {}, h("section", { class: "center-card" },
+    h("div", { class: "card setup" }, h("h1", { text: "Conti è aggiornata ✓" }),
+      h("p", { class: "muted", text: "Si riapre in una nuova finestra: questa si può chiudere." })))));
+  setTimeout(() => window.close(), 2500);
+});
 
 function setData(payload, keepKey) {
   state.data = payload;
@@ -506,8 +530,17 @@ function renderStatus() {
 
 // ── tooltip ─────────────────────────────────────────────────────────────
 const tt = $("tooltip");
+// Sul telefono il tocco non ha un "mouse che esce": il riquadro si chiude toccando altrove,
+// scorrendo la pagina o da solo dopo qualche secondo.
+let tipOwner = null, tipTimer;
+const hideTip = () => { tt.hidden = true; tipOwner = null; clearTimeout(tipTimer); };
+const touchOnly = matchMedia("(hover: none)");
+document.addEventListener("pointerdown", (e) => { if (!tipOwner || !tipOwner.contains(e.target)) hideTip(); }, true);
+addEventListener("scroll", hideTip, { passive: true, capture: true });
 function tip(el, content) {
   el.addEventListener("mousemove", (e) => {
+    tipOwner = el;
+    if (touchOnly.matches) { clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 3000); }
     const [title, rows] = content();
     tt.replaceChildren(h("div", { class: "tt-title", text: title }), ...rows.map(([k, v, color]) =>
       h("div", { class: "tt-row" }, h("span", {}, color ? h("i", { class: "swatch", style: `background:${color}` }) : null, k), h("strong", { text: v }))));
@@ -518,7 +551,7 @@ function tip(el, content) {
     if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
     tt.style.left = `${x}px`; tt.style.top = `${y}px`;
   });
-  el.addEventListener("mouseleave", () => { tt.hidden = true; });
+  el.addEventListener("mouseleave", hideTip);
 }
 
 // ── eventi ──────────────────────────────────────────────────────────────

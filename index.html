@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="d27744c940cd">
+  <meta name="conti-versione" content="7c616912f9b6">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=340a76218b">
+  <link rel="stylesheet" href="app.css?v=24ea3d4eaa">
 </head>
 <body>
   <header class="topbar">
@@ -79,6 +79,10 @@
     </section>
 
     <div id="dashboard" hidden>
+      <div class="notice update" id="update-banner" hidden>
+        <span id="update-text">È disponibile una nuova versione di Conti.</span>
+        <button class="btn primary small-btn" id="update-btn" type="button">Aggiorna</button>
+      </div>
       <div class="notice" id="month-notice" hidden></div>
 
       <section class="card worth" id="worth-card" hidden>
@@ -257,6 +261,6 @@
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <script src="telefono.js?v=a76274ca6b"></script>
-  <script src="app.js?v=e72dcd9f1a"></script>
+  <script src="app.js?v=9e3cbb181f"></script>
 </body>
 </html>

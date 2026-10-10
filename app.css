@@ -468,3 +468,6 @@ dialog h2 { font-size: 18px; }
 .internal-row.link { cursor: pointer; border-radius: 8px; }
 .internal-row.link:hover { background: var(--surface-2); }
 #wallet-body .internal-row.link span:last-child::after { content: " ✎"; color: var(--muted); font-size: 11px; }
+
+/* avviso di aggiornamento (app del Mac) */
+.notice.update { display: flex; align-items: center; gap: 12px; justify-content: space-between; border-color: var(--accent); color: var(--ink); }
