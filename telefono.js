@@ -451,7 +451,27 @@
     }
   }
 
+  // Aggiornamenti dell'app: se sul sito c'è una versione nuova, la pagina si ricarica da sola
+  // (con un indirizzo diverso, così l'iPhone non usa la copia vecchia che tiene in memoria).
+  async function checkUpdate() {
+    const mine = document.querySelector('meta[name="conti-versione"]')?.content;
+    if (!mine || document.querySelector("dialog[open]") || pending) return;
+    try {
+      const r = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store", credentials: "omit" });
+      const latest = r.ok ? (await r.json()).versione : null;
+      if (!latest || latest === mine || !/^[0-9a-f]{12}$/.test(latest)) return;
+      const tried = `conti-agg-${latest}`;
+      try {
+        if (sessionStorage.getItem(tried)) return;  // già provato: niente ricariche a ripetizione
+        sessionStorage.setItem(tried, "1");
+      } catch { /* senza memoria di sessione si prova comunque una volta */ }
+      location.replace(`${location.pathname}?v=${latest}`);
+    } catch { /* offline: si riprova la prossima volta */ }
+  }
+  checkUpdate();
+
   // Riaprendo l'app dopo un po' (era in background), i dati si aggiornano da soli.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkUpdate(); });
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState !== "visible" || !token || !snapshot || pending || Date.now() - loadedAt < STALE_MS) return;
     try {
