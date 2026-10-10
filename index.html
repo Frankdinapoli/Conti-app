@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=8924a176a8">
+  <link rel="stylesheet" href="app.css?v=340a76218b">
 </head>
 <body>
   <header class="topbar">
@@ -80,6 +80,18 @@
     <div id="dashboard" hidden>
       <div class="notice" id="month-notice" hidden></div>
 
+      <section class="card worth" id="worth-card" hidden>
+        <div class="worth-main">
+          <span class="muted small">Patrimonio oggi · conti + contanti</span>
+          <strong class="worth-total" id="worth-total"></strong>
+          <div class="worth-parts" id="worth-parts"></div>
+          <p class="muted small" id="worth-note"></p>
+        </div>
+        <div class="worth-side">
+          <div class="chart worth-chart" id="worth-chart"></div>
+        </div>
+      </section>
+
       <section class="tiles" id="tiles"></section>
 
       <section class="grid">
@@ -132,7 +144,10 @@
               <h2>Portafoglio contanti</h2>
               <p class="muted small">Prelievi al bancomat meno spese in contanti registrate</p>
             </div>
-            <button class="btn" id="add-cash-2" type="button">+ Contanti</button>
+            <div class="head-actions">
+              <button class="btn ghost" id="add-initial" type="button" title="Il contante che avevi già: non è un'entrata né un prelievo">Ce l'ho già</button>
+              <button class="btn" id="add-cash-2" type="button">+ Contanti</button>
+            </div>
           </header>
           <div id="wallet-body"></div>
         </article>
@@ -213,7 +228,7 @@
   <dialog id="cash-dialog" aria-labelledby="cash-title">
     <form method="dialog" id="cash-form" autocomplete="off">
       <h2 id="cash-title">Registra contanti</h2>
-      <div class="segmented tipo" role="radiogroup" aria-label="Tipo">
+      <div class="segmented tipo" id="cash-tipo" role="radiogroup" aria-label="Tipo">
         <label><input type="radio" name="tipo" value="spesa" checked><span id="tipo-spesa">Spesa</span></label>
         <label><input type="radio" name="tipo" value="entrata"><span id="tipo-entrata">Entrata</span></label>
       </div>
@@ -224,7 +239,7 @@
         </label>
         <label class="field narrow"><span id="cash-date-label">Data</span><input id="cash-date" type="date" required></label>
       </div>
-      <label class="field"><span>Descrizione</span><input id="cash-desc" maxlength="80" placeholder="es. Caffè al bar" required></label>
+      <label class="field" id="cash-desc-field"><span>Descrizione</span><input id="cash-desc" maxlength="80" placeholder="es. Caffè al bar" required></label>
       <label class="field" id="cash-cat-field"><span>Categoria</span><input id="cash-cat" list="cash-cat-list" maxlength="40" placeholder="es. Ristoranti e bar" required>
         <datalist id="cash-cat-list"></datalist></label>
       <p class="hint" id="cash-hint" hidden>Promemoria: non entra in statistiche, report e budget. Quando sul conto arriva un movimento simile, l'app te lo propone.</p>
@@ -240,7 +255,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=cd645e9ee8"></script>
-  <script src="app.js?v=c797a0daf3"></script>
+  <script src="telefono.js?v=578c41397d"></script>
+  <script src="app.js?v=e72dcd9f1a"></script>
 </body>
 </html>

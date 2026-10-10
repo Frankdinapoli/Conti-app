@@ -216,9 +216,57 @@
       : "Salvato ✓ Totali e grafici si aggiornano tra 1-2 minuti." });
   }
 
+  // Contante di partenza (quello che avevi già): solo nel portafoglio, mai entrata, spesa o prelievo.
+  async function initialCash(body) {
+    const action = body.azione;
+    const id = String(body.id || "");
+    if (!snapshot) return reply(409, { errore: "dati non ancora caricati" });
+    if (id && !(view().contanti_iniziali || []).some((e) => e.id === id)) return reply(400, { errore: "voce non trovata" });
+    let entry = null;
+    if (action === "salva") {
+      const when = String(body.data || "");
+      const amountText = String(body.importo || "").trim().replace(",", ".");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(when) || Number.isNaN(Date.parse(when)) || !/^\d+(\.\d{1,2})?$/.test(amountText)) {
+        return reply(400, { errore: "data o importo non validi" });
+      }
+      const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+      if (when < "2000-01-01" || when > tomorrow) return reply(400, { errore: "data non valida" });
+      const amount = Number(amountText);
+      if (!(amount > 0 && amount <= 1000000)) return reply(400, { errore: "l'importo deve essere positivo" });
+      const currency = String(body.valuta || "EUR").toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency)) return reply(400, { errore: "valuta non valida" });
+      const rnd = crypto.getRandomValues(new Uint8Array(8));
+      entry = {
+        id: id || `init-${[...rnd].map((b) => b.toString(16).padStart(2, "0")).join("")}`,
+        data: when, importo: amount.toFixed(2), valuta: currency,
+        eur: currency === "EUR" ? amount.toFixed(2) : null,  // le altre valute le converte GitHub (BCE)
+      };
+    } else if (!id) {
+      return reply(400, { errore: "voce non trovata" });
+    }
+    const commit = await writeJson("data/contanti.json", (cur) => {
+      let list = (Array.isArray(cur.iniziale) ? cur.iniziale : []).filter((e) => e && String(e.id || "").startsWith("init-"));
+      list = list.filter((e) => e.id !== id);
+      if (entry) list.push(entry);
+      list.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : a.id < b.id ? -1 : 1));
+      return JSON.stringify({
+        _nota: "Scritto dall'app Conti: spese ed entrate in contanti registrate a mano.",
+        versione: 1,
+        movimenti: Array.isArray(cur.movimenti) ? cur.movimenti : [],
+        ...(list.length ? { iniziale: list } : {}),
+      }, null, 2) + "\n";
+    }, "Contanti: contante di partenza aggiornato (app)");
+    remember(commit, (d) => {
+      d.contanti_iniziali = (d.contanti_iniziali || []).filter((e) => e.id !== id);
+      if (entry) d.contanti_iniziali.push(entry);
+    });
+    return reply(200, { ok: true, dati: view(), avviso: "Salvato ✓ Portafoglio e patrimonio si aggiornano tra 1-2 minuti." });
+  }
+
   async function cash(body) {
     const action = body.azione;
     if (!["salva", "elimina"].includes(action)) return reply(400, { errore: "richiesta non valida" });
+    if (body.tipo === "iniziale" || String(body.id || "").startsWith("init-")) return await initialCash(body);
     const id = String(body.id || "");
     if (id && !snapshot) return reply(409, { errore: "dati non ancora caricati" });
     if (id && !view().contanti?.[id]) return reply(400, { errore: "movimento non trovato" });
@@ -268,6 +316,7 @@
         _nota: "Scritto dall'app Conti: spese ed entrate in contanti registrate a mano.",
         versione: 1,
         movimenti: list,
+        ...(Array.isArray(cur.iniziale) && cur.iniziale.length ? { iniziale: cur.iniziale } : {}),  // il contante di partenza resta
       }, null, 2) + "\n";
     }, message);
 

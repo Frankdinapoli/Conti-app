@@ -165,6 +165,7 @@ function render() {
   $("month-notice").className = `notice${stale != null ? " critical" : ""}`;
   $("month-notice").textContent = notes.join(" ");
 
+  renderWorth();
   renderTiles(m, prev);
   renderTrend();
   renderCategories(m, prev);
@@ -380,6 +381,11 @@ function renderWallet(m) {
   $("wallet-body").replaceChildren(
     h("div", { class: "wallet-balance" }, h("span", { class: "muted small", text: m.year ? "Contante stimato a fine anno" : "Contante stimato a fine mese" }),
       h("strong", { text: fmt(w.saldo) })),
+    ...(state.data.contanti_iniziali || []).map((e) => h("div", { class: "internal-row link", role: "button", tabindex: "0",
+      title: "Contante che avevi già: clicca per modificarlo", onclick: () => openInitial(e.id),
+      onkeydown: (ev) => { if (ev.key === "Enter") openInitial(e.id); } },
+      h("span", { text: `Contante che avevi già · dal ${fmtDate(e.data)}` }), h("span"), h("span"),
+      h("span", { text: e.valuta === "EUR" ? fmt(Number(e.importo)) : `${NUM.format(Number(e.importo))} ${e.valuta}${e.eur == null ? " · cambio in arrivo" : ""}` }))),
     h("div", { class: "internal-row" }, h("span", { text: "Prelevato al bancomat" }), h("span"), h("span"), h("span", { text: fmt(w.prelevato) })),
     h("div", { class: "internal-row" }, h("span", { text: "Spese in contanti registrate" }), h("span"), h("span"), h("span", { text: fmt(w.speso) })),
     h("p", { class: "muted small", text: "Se nel portafoglio hai meno contante di così, la differenza sono spese non registrate: aggiungile con + Contanti." }));
@@ -555,7 +561,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") setMonth(state.idx + 1);
 });
 let resizeTimer;
-addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => state.data && renderTrend(), 120); });
+addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.data) { renderTrend(); renderWorth(); } }, 120); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => state.data && render());
 
 // battito: se la finestra viene chiusa il server si spegne da solo
@@ -624,13 +630,21 @@ let cashEditing = null;
 let entryMode = "contanti";  // oppure "previsti"
 function setEntryMode(mode) {
   entryMode = mode;
+  const init = mode === "iniziale";
+  $("cash-tipo").hidden = init;
+  $("cash-desc-field").hidden = init;
+  $("cash-desc").required = !init;
   const plan = mode === "previsti";
   $("tipo-spesa").textContent = plan ? "Da pagare" : "Spesa";
   $("tipo-entrata").textContent = plan ? "Da ricevere" : "Entrata";
   $("cash-date-label").textContent = plan ? "Quando" : "Data";
-  $("cash-cat-field").hidden = plan;
-  $("cash-cat").required = !plan;
-  $("cash-hint").hidden = !plan;
+  $("cash-cat-field").hidden = plan || init;
+  $("cash-cat").required = !plan && !init;
+  $("cash-hint").hidden = !plan && !init;
+  $("cash-hint").textContent = init
+    ? "Il contante che avevi già in tasca da quella data. Entra solo nel portafoglio e nel patrimonio: non è un'entrata, una spesa o un prelievo."
+    : "Promemoria: non entra in statistiche, report e budget. Quando sul conto arriva un movimento simile, l'app te lo propone.";
+  if (init) $("cash-date-label").textContent = "Da quando";
   $("cash-desc").placeholder = plan ? "es. Matteo mi restituisce la cena" : "es. Caffè al bar";
 }
 function openPlan(id) {
@@ -647,6 +661,19 @@ function openPlan(id) {
   $("cash-error").hidden = true;
   $("cash-dialog").showModal();
   (e ? $("cash-desc") : $("cash-amount")).focus();
+}
+function openInitial(id) {
+  const e = id ? (state.data.contanti_iniziali || []).find((x) => x.id === id) : null;
+  setEntryMode("iniziale");
+  cashEditing = e ? id : null;
+  $("cash-title").textContent = "Contante che hai già";
+  $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
+  $("cash-amount").value = e ? Number(e.importo).toFixed(2) : "";
+  $("cash-currency").value = e ? e.valuta : "EUR";
+  $("cash-delete").hidden = !e;
+  $("cash-error").hidden = true;
+  $("cash-dialog").showModal();
+  $("cash-amount").focus();
 }
 function openCash(id) {
   const e = id ? state.data.contanti[id] : null;
@@ -677,6 +704,10 @@ async function saveCash(action, planId) {
     descrizione: $("cash-desc").value, categoria: $("cash-cat").value,
   };
   if (plan) delete body.categoria;
+  if (entryMode === "iniziale" && !planId) {
+    body.tipo = "iniziale";
+    delete body.categoria; delete body.descrizione;
+  }
   $("cash-save").disabled = true;
   const { ok, payload } = await api(plan ? "/api/previsti" : "/api/contanti", body);
   $("cash-save").disabled = false;
@@ -694,6 +725,7 @@ async function saveCash(action, planId) {
   render();
   toast(plan
     ? (planId ? "Fatto ✓ Tolto dai previsti." : action === "elimina" ? "Tolto dai previsti." : "Previsto salvato ✓")
+    : entryMode === "iniziale" ? payload.avviso || (action === "elimina" ? "Contante di partenza eliminato." : "Contante di partenza salvato ✓")
     : payload.avviso || (action === "elimina" ? "Movimento in contanti eliminato." : "Contanti salvati ✓"));
 }
 $("cash-form").addEventListener("submit", (e) => { e.preventDefault(); saveCash("salva"); });
@@ -701,6 +733,61 @@ $("cash-cancel").addEventListener("click", () => $("cash-dialog").close());
 $("cash-delete").addEventListener("click", () => saveCash("elimina"));
 for (const id of ["add-cash", "add-cash-2"]) $(id).addEventListener("click", () => openCash(null));
 $("add-plan").addEventListener("click", () => openPlan(null));
+$("add-initial").addEventListener("click", () => openInitial(null));
+
+// ── patrimonio: saldi dei conti + contanti (niente investimenti) ────────
+function renderWorth() {
+  const w = state.data.patrimonio;
+  $("worth-card").hidden = !w;
+  if (!w) return;
+  $("worth-total").textContent = fmt(w.totale);
+  const parts = w.banche.map((b) => h("span", { class: `worth-part${b.vecchio ? " old" : ""}`,
+    title: b.vecchio ? `Ultimo saldo letto il ${fmtDate(b.data)}` : b.incompleto ? "Un conto in valuta senza tasso di cambio non è incluso" : null },
+    h("span", { class: "muted", text: b.nome }), h("strong", { text: fmt(b.eur) }), b.vecchio ? h("span", { class: "muted", text: ` · ${fmtDate(b.data)}` }) : null));
+  if (w.contanti != null) parts.push(h("span", { class: "worth-part" }, h("span", { class: "muted", text: "Contanti" }), h("strong", { text: fmt(w.contanti) })));
+  $("worth-parts").replaceChildren(...parts);
+  const notes = [`Saldi disponibili del ${fmtDate(w.aggiornato)}, come nell'app della banca.`];
+  if (w.con_previsti != null) notes.push(`Con i previsti: ${fmt(w.con_previsti)}.`);
+  $("worth-note").textContent = notes.join(" ");
+
+  const box = $("worth-chart");
+  const pts = w.storico;
+  if (pts.length < 2) {
+    return box.replaceChildren(h("p", { class: "empty small", text: "L'andamento si riempie giorno dopo giorno, a ogni sync." }));
+  }
+  const W = box.clientWidth || 420, H = box.clientHeight || 150;
+  const pad = { l: 44, r: 8, t: 10, b: 22 };
+  const vals = pts.map((p) => p.totale);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const span = Math.max(hi - lo, Math.abs(hi) * 0.02, 10);
+  lo -= span * 0.15; hi += span * 0.15;
+  const x = (i) => pad.l + (i / (pts.length - 1)) * (W - pad.l - pad.r);
+  const y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.totale).toFixed(1)}`).join("");
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Andamento del patrimonio" });
+  for (const v of [lo + (hi - lo) * 0.15, hi - (hi - lo) * 0.15]) {
+    svg.append(s("line", { class: "gridline", x1: pad.l, x2: W - pad.r, y1: y(v), y2: y(v) }),
+      s("text", { x: pad.l - 8, y: y(v) + 4, "text-anchor": "end" }, compact(v)));
+  }
+  svg.append(
+    s("path", { d: `${line}L${x(pts.length - 1)},${H - pad.b}L${pad.l},${H - pad.b}Z`, fill: css("--series-1"), opacity: "0.12" }),
+    s("path", { d: line, fill: "none", stroke: css("--series-1"), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }),
+    s("circle", { cx: x(pts.length - 1), cy: y(vals.at(-1)), r: 3.5, fill: css("--series-1") }),
+    s("text", { x: pad.l, y: H - 6 }, fmtDate(pts[0].data)),
+    s("text", { x: W - pad.r, y: H - 6, "text-anchor": "end" }, fmtDate(pts.at(-1).data)));
+  const hit = s("rect", { class: "hit", x: pad.l, y: 0, width: W - pad.l - pad.r, height: H });
+  let hover = null;
+  hit.addEventListener("mousemove", (e) => {
+    const r = hit.getBoundingClientRect();
+    hover = Math.round(((e.clientX - r.left) / r.width) * (pts.length - 1));
+  });
+  tip(hit, () => {
+    const p = pts[Math.max(0, Math.min(pts.length - 1, hover ?? pts.length - 1))];
+    return [fmtDate(p.data), [["Patrimonio", fmt(p.totale), css("--series-1")]]];
+  });
+  svg.append(hit);
+  box.replaceChildren(svg);
+}
 
 // ── previsti: promemoria, mai nei totali ────────────────────────────────
 function whenText(iso) {

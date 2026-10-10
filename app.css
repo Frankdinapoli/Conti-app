@@ -445,3 +445,26 @@ dialog h2 { font-size: 18px; }
   .plan-desc { grid-row: 1; font-weight: 550; }
   .plan-amt { grid-row: 1; }
 }
+
+/* ── patrimonio (conti + contanti, aggiornato a ogni sync) ────────── */
+.card.worth { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: center; margin-bottom: 16px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface) 60%); }
+.worth-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.worth-total { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.worth-parts { display: flex; flex-wrap: wrap; gap: 6px; }
+.worth-part { display: inline-flex; gap: 6px; align-items: baseline; font-size: 13px; padding: 4px 10px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--ring); font-variant-numeric: tabular-nums; }
+.worth-part.old { border-style: dashed; }
+.worth-main p { margin: 2px 0 0; }
+.worth-chart { height: 150px; }
+@media (max-width: 640px) {
+  .card.worth { grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; }
+  .worth-total { font-size: 28px; }
+  .worth-chart { height: 120px; }
+}
+
+/* contante di partenza */
+.head-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.internal-row.link { cursor: pointer; border-radius: 8px; }
+.internal-row.link:hover { background: var(--surface-2); }
+#wallet-body .internal-row.link span:last-child::after { content: " ✎"; color: var(--muted); font-size: 11px; }
