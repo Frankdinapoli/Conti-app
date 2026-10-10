@@ -10,7 +10,9 @@
   const REPO = "Frankdinapoli/Conti";
   const API = "https://api.github.com";
   const STORE = "conti-gh";
-  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json"]);
+  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json"]);
+  const EXPIRY_STORE = "conti-gh-scadenza";
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const CATEGORY_RE = /^[\p{L}\p{N}_'/&.,() -]{2,40}$/u;
   const POLL_MS = 15000;
   const POLL_MAX = 40;  // ~10 minuti
@@ -96,8 +98,13 @@
   }
 
   // Le modifiche non ancora ricalcolate da GitHub restano visibili sopra i dati letti.
+  // Scadenza del token: GitHub non la fa leggere alle pagine web, quindi la inserisci tu (una volta).
+  let tokenExpiry = null;
+  try { tokenExpiry = localStorage.getItem(EXPIRY_STORE); } catch { /* facoltativa */ }
+
   function view() {
     const d = structuredClone(snapshot);
+    d.token_scadenza = DATE_RE.test(tokenExpiry || "") ? tokenExpiry : null;
     if (pending) {
       for (const patch of pending.patches) patch(d);
       d.aggiornamento = true;
@@ -406,6 +413,77 @@
     return reply(200, { ok: true, dati: view() });
   }
 
+  // Viaggi (data/viaggi.json): nome e date, movimenti tolti o aggiunti a mano.
+  async function trips(body) {
+    const action = body.azione;
+    if (!["salva", "elimina", "togli", "aggiungi", "ripristina"].includes(action)) return reply(400, { errore: "richiesta non valida" });
+    if (!snapshot) return reply(409, { errore: "dati non ancora caricati" });
+    const id = String(body.id || "");
+    const known = (view().viaggi || []).find((v) => v.id === id);
+    if ((id || action !== "salva") && !known) return reply(400, { errore: "viaggio non trovato" });
+    let entry = null;
+    const tx = String(body.movimento || "");
+    if (action === "salva") {
+      const from = String(body.dal || ""), to = String(body.al || "");
+      if (!DATE_RE.test(from) || !DATE_RE.test(to) || to < from || (Date.parse(to) - Date.parse(from)) / 864e5 > 366) {
+        return reply(400, { errore: "date non valide (al massimo un anno di viaggio)" });
+      }
+      const name = clean(body.nome, 60);
+      if (!name) return reply(400, { errore: "scrivi il nome del viaggio" });
+      const rnd = crypto.getRandomValues(new Uint8Array(8));
+      entry = { id: id || `trip-${[...rnd].map((b) => b.toString(16).padStart(2, "0")).join("")}`, nome: name, dal: from, al: to };
+    } else if (action !== "elimina" && !snapshot.movimenti.some((t) => t.id === tx)) {
+      return reply(400, { errore: "movimento non trovato" });
+    }
+    const commit = await writeJson("data/viaggi.json", (cur) => {
+      let list = (Array.isArray(cur.viaggi) ? cur.viaggi : []).filter((v) => v && String(v.id || "").startsWith("trip-"));
+      if (id && !list.some((v) => v.id === id)) throw new Fail(400, { errore: "viaggio non trovato" });
+      if (action === "elimina") list = list.filter((v) => v.id !== id);
+      else if (action === "salva") {
+        const old = list.find((v) => v.id === entry.id);
+        list = list.filter((v) => v.id !== entry.id);
+        list.push({ ...entry, escludi: old?.escludi || [], includi: old?.includi || [] });
+      } else {
+        list = list.map((v) => {
+          if (v.id !== id) return v;
+          const escludi = (v.escludi || []).filter((x) => x !== tx), includi = (v.includi || []).filter((x) => x !== tx);
+          if (action === "togli") escludi.push(tx);
+          if (action === "aggiungi") includi.push(tx);
+          return { ...v, escludi, includi };
+        });
+      }
+      list.sort((a, b) => (a.dal < b.dal ? -1 : a.dal > b.dal ? 1 : a.id < b.id ? -1 : 1));
+      return JSON.stringify({
+        _nota: "Scritto dall'app Conti: viaggi (date e movimenti tolti o aggiunti a mano).",
+        versione: 1,
+        viaggi: list,
+      }, null, 2) + "\n";
+    }, "Viaggi aggiornati dall'app");
+    remember(commit, (d) => {
+      d.viaggi = d.viaggi || [];
+      const amount = (tid) => -(d.movimenti.find((t) => t.id === tid)?.eur || 0);
+      if (action === "elimina") d.viaggi = d.viaggi.filter((v) => v.id !== id);
+      else if (action === "salva") {
+        const old = d.viaggi.find((v) => v.id === entry.id);
+        d.viaggi = d.viaggi.filter((v) => v.id !== entry.id);
+        d.viaggi.push({ stato: "futuro", giorni: 1, tra_giorni: null, totale: 0, al_giorno: null, categorie: [],
+          movimenti: [], esclusi: [], aggiunti: [], valute: [], ...old, ...entry });
+        d.viaggi.sort((a, b) => (a.dal < b.dal ? -1 : 1));
+      } else {
+        const v = d.viaggi.find((x) => x.id === id);
+        if (!v) return;
+        const had = v.movimenti.includes(tx);
+        v.movimenti = v.movimenti.filter((x) => x !== tx);
+        v.esclusi = v.esclusi.filter((x) => x !== tx);
+        v.aggiunti = v.aggiunti.filter((x) => x !== tx);
+        if (action === "togli") { v.esclusi.push(tx); if (had) v.totale -= amount(tx); }
+        if (action === "aggiungi") { v.aggiunti.push(tx); v.movimenti.push(tx); if (!had) v.totale += amount(tx); }
+        v.totale = Math.round(v.totale * 100) / 100;
+      }
+    });
+    return reply(200, { ok: true, dati: view(), avviso: "Salvato ✓ Il resoconto si aggiorna tra 1-2 minuti." });
+  }
+
   async function setToken(body) {
     const candidate = String(body.token || "").trim();
     if (!candidate || candidate.length > 400 || /\s/.test(candidate)) return reply(400, { errore: "token non valido" });
@@ -415,7 +493,16 @@
     if (!r.ok) return reply(400, { errore: `Verifica non riuscita (${r.status}): riprova.` });
     token = candidate;
     try { localStorage.setItem(STORE, token); } catch { /* resta solo per questa sessione */ }
+    setExpiry(body.scadenza);
     return reply(200, { ok: true });
+  }
+
+  function setExpiry(value) {
+    const v = String(value || "");
+    if (v && !DATE_RE.test(v)) return reply(400, { errore: "data non valida" });
+    tokenExpiry = v || null;
+    try { v ? localStorage.setItem(EXPIRY_STORE, v) : localStorage.removeItem(EXPIRY_STORE); } catch { /* facoltativa */ }
+    return reply(200, { ok: true, dati: snapshot ? view() : null });
   }
 
   function logout() {
@@ -423,7 +510,8 @@
     snapshot = null;
     pending = null;
     clearTimeout(pollTimer);
-    try { localStorage.removeItem(STORE); } catch { /* niente da cancellare */ }
+    try { localStorage.removeItem(STORE); localStorage.removeItem(EXPIRY_STORE); } catch { /* niente da cancellare */ }
+    tokenExpiry = null;
     return reply(200, { ok: true });
   }
 
@@ -444,6 +532,8 @@
       if (route === "/api/correzione") return await correction(body || {});
       if (route === "/api/contanti") return await cash(body || {});
       if (route === "/api/previsti") return await planned(body || {});
+      if (route === "/api/viaggi") return await trips(body || {});
+      if (route === "/api/scadenza") return setExpiry((body || {}).scadenza);
       return reply(404, { errore: "non disponibile sul telefono" });
     } catch (e) {
       if (e instanceof Fail) return reply(e.status, e.payload);

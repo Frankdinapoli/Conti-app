@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="7c616912f9b6">
+  <meta name="conti-versione" content="be78fd306770">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=24ea3d4eaa">
+  <link rel="stylesheet" href="app.css?v=04556d8950">
 </head>
 <body>
   <header class="topbar">
@@ -62,6 +62,8 @@
           <li><strong>Generate token</strong>, copialo e incollalo qui sotto.</li>
         </ol>
         <p class="muted small">Usa un token diverso da quello del Mac: se perdi il telefono lo revochi da GitHub senza toccare il Mac.</p>
+        <label class="field token-expiry"><span>Scadenza del token (facoltativa: l'app ti avvisa 3 settimane prima)</span>
+          <input id="token-expiry" type="date"></label>
         <form id="token-form" autocomplete="off">
           <input id="token-input" type="password" placeholder="github_pat_…" spellcheck="false" aria-label="Token GitHub">
           <button class="btn primary" type="submit">Collega</button>
@@ -157,6 +159,27 @@
           <div id="wallet-body"></div>
         </article>
 
+        <article class="card" id="recurring-card">
+          <header class="card-head">
+            <div>
+              <h2>Spese ricorrenti</h2>
+              <p class="muted small">Riconosciute da sole: pagamenti regolari con importi simili</p>
+            </div>
+          </header>
+          <div id="recurring-body"></div>
+        </article>
+
+        <article class="card" id="trips-card">
+          <header class="card-head">
+            <div>
+              <h2>Viaggi</h2>
+              <p class="muted small">Le spese di quei giorni, raggruppate · senza affitto e abbonamenti</p>
+            </div>
+            <button class="btn" id="add-trip" type="button">+ Viaggio</button>
+          </header>
+          <div id="trips-body"></div>
+        </article>
+
         <article class="card" id="plan-card">
           <header class="card-head">
             <div>
@@ -221,6 +244,11 @@
       </fieldset>
       <p class="hint" id="edit-hint"></p>
       <div class="error" id="edit-error" hidden></div>
+      <div class="edit-extra" id="edit-extra">
+        <button type="button" class="btn ghost small-btn" id="edit-advance">Ho pagato anche per altri…</button>
+        <label class="field compact" id="edit-trip-field"><span>Viaggio</span>
+          <select id="edit-trip"></select></label>
+      </div>
       <div class="dialog-actions">
         <button type="button" class="btn ghost" id="edit-reset" hidden>Ripristina automatico</button>
         <span class="spacer"></span>
@@ -258,9 +286,28 @@
     </form>
   </dialog>
 
+  <dialog id="trip-dialog" aria-labelledby="trip-title">
+    <form method="dialog" id="trip-form" autocomplete="off">
+      <h2 id="trip-title">Nuovo viaggio</h2>
+      <label class="field"><span>Nome</span><input id="trip-name" maxlength="60" placeholder="es. Roma a Natale" required></label>
+      <div class="field-row two">
+        <label class="field"><span>Dal</span><input id="trip-from" type="date" required></label>
+        <label class="field"><span>Al</span><input id="trip-to" type="date" required></label>
+      </div>
+      <div id="trip-report"></div>
+      <div class="error" id="trip-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost danger" id="trip-delete" hidden>Elimina</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="trip-cancel">Chiudi</button>
+        <button type="submit" class="btn primary" id="trip-save">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=a76274ca6b"></script>
-  <script src="app.js?v=9e3cbb181f"></script>
+  <script src="telefono.js?v=5cc38f2a37"></script>
+  <script src="app.js?v=355c83721a"></script>
 </body>
 </html>

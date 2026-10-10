@@ -183,6 +183,11 @@ function render() {
   if (m.partial) notes.push(year ? "Il tracciamento è iniziato durante quest'anno: i mesi precedenti non ci sono." : "Mese parziale: i dati iniziano dopo i primi giorni del mese (inizio del tracciamento).");
   if (state.data.aggiornamento) notes.push("Modifica salvata: GitHub sta ricalcolando totali e grafici, si aggiornano da soli tra un paio di minuti.");
   if (m.senza_cambio) notes.push(`${m.senza_cambio} movimenti senza tasso di cambio non sono nei totali.`);
+  const tokenDays = state.data.token_scadenza ? Math.ceil((new Date(state.data.token_scadenza) - new Date()) / 864e5) : null;
+  if (tokenDays != null && tokenDays <= 21) {
+    notes.unshift(`Il token GitHub di questo ${PHONE ? "telefono" : "Mac"} scade il ${fmtDate(state.data.token_scadenza)} (tra ${Math.max(tokenDays, 0)} giorni): `
+      + "su GitHub → Settings → Developer settings → Fine-grained tokens apri il token → Regenerate token, poi incolla quello nuovo quando l'app lo chiede.");
+  }
   const stale = staleDays();
   if (stale != null) notes.unshift(`Il sync automatico non gira da ${stale} giorni: i dati potrebbero non essere aggiornati. Controlla Actions → Sync spese su GitHub (o STATO.md).`);
   $("month-notice").hidden = !notes.length;
@@ -196,6 +201,9 @@ function render() {
   renderBudget(m);
   renderInternal(m);
   renderWallet(m);
+  renderRecurring();
+  renderTrips();
+  if (tripEditing && $("trip-dialog")?.open && state.data.viaggi?.some((v) => v.id === tripEditing)) openTrip(tripEditing);
   renderPlanned();
   renderYear(m);
   renderFilters(m);
@@ -219,7 +227,8 @@ function renderTiles(m, prev) {
     { label: "Entrate", v: m.entrate, p: prev?.entrate, up: true, sub: `di cui da persone ${fmt(m.da_persone)}` },
     { label: "Uscite", v: m.uscite, p: prev?.uscite, up: false, sub: `di cui a persone ${fmt(m.a_persone)}` },
     { label: m.year ? "Saldo dell'anno" : "Saldo del mese", v: m.saldo, p: prev?.saldo, up: true, hero: true, sub: "entrate − uscite" },
-    { label: "Totale speso", v: m.speso, p: prev?.speso, up: false, sub: `${m.categorie.reduce((a, c) => a + c.n, 0)} movimenti` },
+    { label: "Totale speso", v: m.speso, p: prev?.speso, up: false,
+      sub: m.previsione ? `previsione a fine mese ≈ ${EUR0.format(m.previsione.speso)}` : `${m.categorie.reduce((a, c) => a + c.n, 0)} movimenti` },
   ];
   $("tiles").replaceChildren(...tiles.map((t) =>
     h("div", { class: `card tile${t.hero ? " hero" : ""}` },
@@ -370,7 +379,8 @@ function renderBudget(m) {
     h("span", { class: "status-icon st-good", "aria-hidden": "true", text: "✓" }),
     ` ${unused.length} budget ancora a 0 €: ${unused.map((b) => b.nome).join(", ")}`) : null;
   list.replaceChildren(...rows.map((b) => {
-    const st = b.r > 1 ? ["critical", "✕", "Superato"] : b.r >= 0.8 ? ["warning", "!", "Quasi al limite"] : ["good", "✓", "Nei limiti"];
+    const st = b.r > 1 ? ["critical", "✕", "Superato"] : b.r >= 0.8 ? ["warning", "!", "Quasi al limite"]
+      : b.previsto > b.budget ? ["warning", "!", `A rischio: a fine mese ≈ ${EUR0.format(b.previsto)}`] : ["good", "✓", "Nei limiti"];
     return h("div", { class: "budget-row" },
       h("span", { class: "bname" }, h("span", { class: `status-icon st-${st[0]}`, "aria-hidden": "true", text: st[1] }),
         h("span", { text: b.nome }), h("span", { class: "muted small", text: `· ${st[2]}` })),
@@ -525,7 +535,25 @@ function renderStatus() {
   }
   if (state.data.correzioni) foot.push(`${state.data.correzioni} correzioni insegnate al sistema`);
   foot.push(PHONE ? "I dati restano su GitHub: sul telefono resta solo il token." : "I dati restano su GitHub: nulla viene salvato sul Mac.");
-  $("foot").replaceChildren(...foot.map((t) => h("span", { text: t })));
+  if (state.data.token_scadenza) foot.push(`Token GitHub valido fino al ${fmtDate(state.data.token_scadenza)}`);
+  $("foot").replaceChildren(...foot.map((t) => h("span", { text: t })),
+    PHONE ? h("button", { class: "link-btn", type: "button", onclick: askExpiry,
+      text: state.data.token_scadenza ? "Cambia la scadenza del token" : "Imposta la scadenza del token (per l'avviso)" }) : "");
+}
+
+// Telefono: la scadenza del token la vedi su GitHub (pagina del token); l'app avvisa 3 settimane prima.
+async function askExpiry() {
+  const now = state.data.token_scadenza ? fmtDate(state.data.token_scadenza) : "";
+  const answer = prompt("Data di scadenza del token del telefono (GG/MM/AAAA). La trovi su GitHub → Settings → Developer settings → Fine-grained tokens.", now);
+  if (answer == null) return;
+  const m = answer.trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (answer.trim() && !m) return toast("Data non valida: usa GG/MM/AAAA.");
+  const iso = m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "";
+  const { ok, payload } = await api("/api/scadenza", { scadenza: iso });
+  if (!ok) return toast(payload.errore || "Non riuscito.");
+  setData(payload.dati, current().key);
+  render();
+  toast(iso ? "Scadenza salvata ✓" : "Scadenza tolta.");
 }
 
 // ── tooltip ─────────────────────────────────────────────────────────────
@@ -583,7 +611,7 @@ $("quit").addEventListener("click", async () => {
 $("token-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("token-input");
-  const { ok, payload } = await api("/api/token", { token: input.value });
+  const { ok, payload } = await api("/api/token", { token: input.value, scadenza: $("token-expiry")?.value || "" });
   input.value = "";
   if (!ok) { $("setup-error").hidden = false; $("setup-error").textContent = payload.errore || "Token non valido."; return; }
   load(true);
@@ -626,6 +654,12 @@ function openEdit(t) {
     : "L'app ricorda la scelta e impara dalle parole del nome a riconoscere da sola esercenti simili.";
   $("edit-reset").hidden = !t.corretto;
   $("edit-error").hidden = true;
+  $("edit-advance").hidden = !(t.eur < 0 && t.gruppo === "spesa");
+  const trips = state.data.viaggi || [];
+  $("edit-trip-field").hidden = !trips.length || t.gruppo !== "spesa";
+  $("edit-trip").replaceChildren(h("option", { value: "", text: "Nessun viaggio" }),
+    ...trips.map((v) => h("option", { value: v.id, text: `${v.nome} (${fmtDate(v.dal)})` })));
+  $("edit-trip").value = trips.find((v) => v.movimenti.includes(t.id))?.id || "";
   $("edit-dialog").showModal();
   $("edit-cat").select();
 }
@@ -658,6 +692,138 @@ $("edit-form").addEventListener("submit", (e) => {
 });
 $("edit-cancel").addEventListener("click", () => $("edit-dialog").close());
 $("edit-reset").addEventListener("click", () => saveEdit("ripristina"));
+// "Ho pagato anche per altri": diventa un Previsto da ricevere, abbinato quando arriva il rimborso.
+$("edit-advance").addEventListener("click", () => {
+  const t = editing;
+  $("edit-dialog").close();
+  openPlan(null);
+  $("cash-title").textContent = "Ho pagato anche per altri";
+  $("cash-form").elements.tipo.value = "entrata";
+  $("cash-currency").value = t.valuta;
+  $("cash-desc").value = `Rimborso da …: ${t.descrizione}`.slice(0, 80);
+  $("cash-date").value = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  $("cash-hint").textContent = "Scrivi al posto dei puntini chi ti deve i soldi e quanto. Lo trovi tra i Previsti: quando arriva il rimborso, l'app lo abbina.";
+  $("cash-amount").focus();
+});
+// Viaggio del movimento: aggiungilo (es. il volo prenotato prima) o toglilo
+$("edit-trip").addEventListener("change", async (e) => {
+  const t = editing, target = e.target.value;
+  const was = (state.data.viaggi || []).find((v) => v.movimenti.includes(t.id))?.id || "";
+  if (target === was) return;
+  let res = { ok: true, payload: {} };
+  if (was) res = await api("/api/viaggi", { azione: "togli", id: was, movimento: t.id });
+  if (res.ok && target) res = await api("/api/viaggi", { azione: "aggiungi", id: target, movimento: t.id });
+  if (!res.ok) {
+    $("edit-error").hidden = false;
+    $("edit-error").textContent = res.payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : res.payload.errore || "Non riuscito.";
+    return;
+  }
+  setData(res.payload.dati, current().key);
+  render();
+  toast(target ? "Aggiunto al viaggio ✓" : "Tolto dal viaggio ✓");
+});
+
+// ── spese ricorrenti (riconosciute da sole) ─────────────────────────────
+function renderRecurring() {
+  const list = state.data.ricorrenti || [];
+  const box = $("recurring-body");
+  if (!list.length) {
+    return box.replaceChildren(h("p", { class: "empty", text: "Nessuna spesa ricorrente riconosciuta per ora: servono almeno due pagamenti regolari con importi simili." }));
+  }
+  const month = list.reduce((a, x) => a + x.mensile, 0);
+  box.replaceChildren(
+    h("div", { class: "plan-sum two" },
+      h("div", {}, h("span", { class: "muted small", text: "Al mese" }), h("strong", { text: fmt(month) })),
+      h("div", {}, h("span", { class: "muted small", text: "All'anno" }), h("strong", { text: fmt(month * 12) }))),
+    ...list.map((x) => h("div", { class: "internal-row rec-row" },
+      h("span", {}, h("strong", { text: x.nome }), h("small", { class: "muted", text: ` · ${x.categoria} · ${x.frequenza}` })),
+      h("span", { class: "muted", text: `prossimo ${fmtDate(x.prossimo)}` }),
+      h("span", { text: fmt(x.importo) }))));
+}
+
+// ── viaggi ──────────────────────────────────────────────────────────────
+const shortDate = (iso) => new Date(iso + "T12:00").toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+function tripStatus(v) {
+  if (v.stato === "futuro") return v.tra_giorni === 1 ? "domani" : `tra ${v.tra_giorni} giorni`;
+  if (v.stato === "in_corso") return `in corso · ${fmt(v.totale)} finora`;
+  return `${fmt(v.totale)}${v.al_giorno != null ? ` · ${fmt(v.al_giorno)} al giorno` : ""}`;
+}
+function renderTrips() {
+  const list = state.data.viaggi || [];
+  const box = $("trips-body");
+  if (!list.length) {
+    return box.replaceChildren(h("p", { class: "empty", text: "Aggiungi un viaggio con le sue date (anche futuro): durante quei giorni l'app raggruppa le spese e alla fine ti mostra il resoconto." }));
+  }
+  box.replaceChildren(...[...list].reverse().map((v) => h("button", { class: "plan-main trip-row", type: "button", onclick: () => openTrip(v.id) },
+    h("span", { class: "plan-when", text: `${shortDate(v.dal)} – ${shortDate(v.al)}` }),
+    h("span", { class: "plan-desc" }, h("strong", { text: v.nome }), v.stato === "in_corso" ? h("span", { class: "badge", text: "in corso" }) : null),
+    h("span", { class: "plan-amt", text: tripStatus(v) }))));
+}
+let tripEditing = null;
+function openTrip(id) {
+  const v = id ? state.data.viaggi.find((x) => x.id === id) : null;
+  tripEditing = v ? id : null;
+  $("trip-title").textContent = v ? v.nome : "Nuovo viaggio";
+  $("trip-name").value = v ? v.nome : "";
+  $("trip-from").value = v ? v.dal : "";
+  $("trip-to").value = v ? v.al : "";
+  $("trip-delete").hidden = !v;
+  $("trip-error").hidden = true;
+  const box = $("trip-report");
+  if (!v) box.replaceChildren(h("p", { class: "hint", text: "Durante quei giorni le spese finiscono nel viaggio (affitto e abbonamenti esclusi). Le spese fatte prima, come il volo, le aggiungi dalla finestra del movimento." }));
+  else if (v.stato === "futuro") box.replaceChildren(h("p", { class: "hint", text: `Parti ${tripStatus(v)}. Spese già aggiunte: ${fmt(v.totale)}.` }));
+  else {
+    const byId = Object.fromEntries(state.data.movimenti.map((t) => [t.id, t]));
+    const max = Math.max(...v.categorie.map((c) => c.speso), 1);
+    box.replaceChildren(
+      h("div", { class: "plan-sum" },
+        h("div", {}, h("span", { class: "muted small", text: v.stato === "in_corso" ? "Speso finora" : "Totale" }), h("strong", { text: fmt(v.totale) })),
+        h("div", {}, h("span", { class: "muted small", text: "Al giorno" }), h("strong", { text: v.al_giorno != null ? fmt(v.al_giorno) : "—" })),
+        h("div", {}, h("span", { class: "muted small", text: "Giorni" }), h("strong", { text: String(v.giorni) }))),
+      h("div", { class: "hbars trip-cats" }, ...v.categorie.map((c) => h("div", { class: "hbar" },
+        h("span", { class: "name", text: c.nome }),
+        h("div", { class: "track" }, h("div", { class: "fill", style: `width:${(c.speso / max) * 100}%` })),
+        h("span", { class: "val", text: EUR0.format(c.speso) })))),
+      h("h3", { class: "subhead", text: `Movimenti (${v.movimenti.length})` }),
+      h("div", { class: "trip-tx" }, ...v.movimenti.map((tid) => byId[tid]).filter(Boolean).map((t) => h("div", { class: "internal-row trip-line" },
+        h("span", {}, h("span", { class: "muted", text: `${fmtDate(t.data)} · ` }), t.descrizione, v.aggiunti.includes(t.id) ? h("span", { class: "badge", text: "aggiunto" }) : null),
+        h("span", { text: fmt(t.eur) }),
+        h("button", { class: "btn ghost small-btn", type: "button", title: "Togli dal viaggio", text: "Togli",
+          onclick: () => tripAction({ azione: "togli", id: v.id, movimento: t.id }) })))),
+      ...(v.esclusi.length ? [h("h3", { class: "subhead", text: "Tolti a mano" }),
+        h("div", { class: "trip-tx" }, ...v.esclusi.map((tid) => byId[tid]).filter(Boolean).map((t) => h("div", { class: "internal-row trip-line muted" },
+          h("span", { text: `${fmtDate(t.data)} · ${t.descrizione}` }), h("span", { text: fmt(t.eur) }),
+          h("button", { class: "btn ghost small-btn", type: "button", text: "Rimetti",
+            onclick: () => tripAction({ azione: "ripristina", id: v.id, movimento: t.id }) }))))] : []));
+  }
+  if (!$("trip-dialog").open) $("trip-dialog").showModal();
+}
+async function tripAction(body) {
+  $("trip-save").disabled = true;
+  const { ok, payload } = await api("/api/viaggi", body);
+  $("trip-save").disabled = false;
+  if (!ok) {
+    $("trip-error").hidden = false;
+    $("trip-error").textContent = payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Salvataggio non riuscito.";
+    return false;
+  }
+  setData(payload.dati, current().key);
+  render();
+  return true;
+}
+$("add-trip").addEventListener("click", () => openTrip(null));
+$("trip-cancel").addEventListener("click", () => $("trip-dialog").close());
+$("trip-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (await tripAction({ azione: "salva", id: tripEditing, nome: $("trip-name").value, dal: $("trip-from").value, al: $("trip-to").value })) {
+    $("trip-dialog").close();
+    toast("Viaggio salvato ✓");
+  }
+});
+$("trip-delete").addEventListener("click", async () => {
+  if (!confirm("Eliminare questo viaggio? I movimenti restano, sparisce solo il raggruppamento.")) return;
+  if (await tripAction({ azione: "elimina", id: tripEditing })) { $("trip-dialog").close(); toast("Viaggio eliminato."); }
+});
 // ── contanti registrati a mano e previsti (stessa finestra) ─────────────
 let cashEditing = null;
 let entryMode = "contanti";  // oppure "previsti"

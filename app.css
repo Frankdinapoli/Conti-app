@@ -471,3 +471,29 @@ dialog h2 { font-size: 18px; }
 
 /* avviso di aggiornamento (app del Mac) */
 .notice.update { display: flex; align-items: center; gap: 12px; justify-content: space-between; border-color: var(--accent); color: var(--ink); }
+
+/* ricorrenti, viaggi, finestra del movimento */
+.plan-sum.two { grid-template-columns: repeat(2, 1fr); }
+.internal-row.rec-row { grid-template-columns: minmax(0, 1fr) auto 90px; align-items: center; }
+.rec-row small { font-size: 12px; }
+.trip-row { grid-template-columns: 9em minmax(0, 1fr) auto; }
+.trip-row .badge { margin-left: 8px; }
+.trip-cats { margin: 12px 0 4px; }
+.trip-tx { max-height: 260px; overflow-y: auto; }
+.internal-row.trip-line { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; font-size: 13px; }
+.trip-line .badge { margin-left: 6px; }
+#trip-dialog { width: min(600px, 94vw); }
+#trip-form { display: flex; flex-direction: column; gap: 12px; }
+.field-row.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.edit-extra { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.field.compact { flex: 1; min-width: 12em; }
+@media (max-width: 640px) {
+  .internal-row.rec-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .rec-row span:nth-child(2) { grid-row: 2; grid-column: 1; font-size: 12px; }
+  .trip-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .trip-row .plan-when { grid-column: 1 / -1; grid-row: 2; }
+  .field-row.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .field-row.two .field:last-child { grid-column: auto; }
+}
+.link-btn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.token-expiry { margin-top: 12px; }
