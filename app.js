@@ -727,7 +727,8 @@ function renderPlanned() {
       h("div", {}, h("span", { class: "muted small", text: "Da ricevere" }), h("strong", { class: "pos-amt", text: fmt(inc) })),
       h("div", {}, h("span", { class: "muted small", text: "Da pagare" }), h("strong", { text: fmt(out) })),
       h("div", {}, h("span", { class: "muted small", text: "Netto" }), h("strong", { class: inc - out < 0 ? "neg-amt" : null, text: (inc - out > 0 ? "+" : "") + fmt(inc - out) }))),
-    other ? h("p", { class: "muted small", text: `${other} ${other === 1 ? "voce" : "voci"} in altra valuta non ${other === 1 ? "è" : "sono"} nei totali qui sopra.` }) : null,
+    // replaceChildren scriverebbe "null" come testo: solo elementi veri
+    ...(other ? [h("p", { class: "muted small", text: `${other} ${other === 1 ? "voce" : "voci"} in altra valuta non ${other === 1 ? "è" : "sono"} nei totali qui sopra.` })] : []),
     ...list.map((p) => h("div", { class: `plan-row${p.scaduto ? " late" : ""}` },
       h("button", { class: "plan-main", type: "button", title: "Clicca per modificare", onclick: () => openPlan(p.id) },
         h("span", { class: "plan-when" },
