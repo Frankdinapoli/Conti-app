@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="be78fd306770">
+  <meta name="conti-versione" content="152c3b74f60e">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=04556d8950">
+  <link rel="stylesheet" href="app.css?v=90aa11cc3c">
 </head>
 <body>
   <header class="topbar">
@@ -97,6 +97,16 @@
         <div class="worth-side">
           <div class="chart worth-chart" id="worth-chart"></div>
         </div>
+      </section>
+
+      <section class="card alerts" id="alerts-card" hidden>
+        <header class="card-head">
+          <div>
+            <h2>Da controllare</h2>
+            <p class="muted small">Controlli automatici: niente viene modificato, decidi tu</p>
+          </div>
+        </header>
+        <div id="alerts-body"></div>
       </section>
 
       <section class="tiles" id="tiles"></section>
@@ -307,7 +317,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=5cc38f2a37"></script>
-  <script src="app.js?v=355c83721a"></script>
+  <script src="telefono.js?v=46b9f0ab72"></script>
+  <script src="app.js?v=21b9b2b4ee"></script>
 </body>
 </html>

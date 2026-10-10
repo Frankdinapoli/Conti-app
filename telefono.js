@@ -10,7 +10,7 @@
   const REPO = "Frankdinapoli/Conti";
   const API = "https://api.github.com";
   const STORE = "conti-gh";
-  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json"]);
+  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json", "data/avvisi.json"]);
   const EXPIRY_STORE = "conti-gh-scadenza";
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const CATEGORY_RE = /^[\p{L}\p{N}_'/&.,() -]{2,40}$/u;
@@ -484,6 +484,19 @@
     return reply(200, { ok: true, dati: view(), avviso: "Salvato ✓ Il resoconto si aggiorna tra 1-2 minuti." });
   }
 
+  // «Va bene» su un avviso (data/avvisi.json): non ricompare più.
+  async function alertOk(body) {
+    const id = String(body.id || "");
+    if (body.azione !== "ok" || !snapshot || !(view().avvisi || []).some((a) => a.id === id)) return reply(400, { errore: "avviso non trovato" });
+    const commit = await writeJson("data/avvisi.json", (cur) => {
+      const ok = new Set((Array.isArray(cur.ok) ? cur.ok : []).filter((x) => typeof x === "string"));
+      ok.add(id);
+      return JSON.stringify({ _nota: "Scritto dall'app Conti: avvisi già controllati («Va bene»).", versione: 1, ok: [...ok].sort() }, null, 2) + "\n";
+    }, "Avvisi controllati dall'app");
+    remember(commit, (d) => { d.avvisi = (d.avvisi || []).filter((a) => a.id !== id); });
+    return reply(200, { ok: true, dati: view() });
+  }
+
   async function setToken(body) {
     const candidate = String(body.token || "").trim();
     if (!candidate || candidate.length > 400 || /\s/.test(candidate)) return reply(400, { errore: "token non valido" });
@@ -533,6 +546,7 @@
       if (route === "/api/contanti") return await cash(body || {});
       if (route === "/api/previsti") return await planned(body || {});
       if (route === "/api/viaggi") return await trips(body || {});
+      if (route === "/api/avvisi") return await alertOk(body || {});
       if (route === "/api/scadenza") return setExpiry((body || {}).scadenza);
       return reply(404, { errore: "non disponibile sul telefono" });
     } catch (e) {

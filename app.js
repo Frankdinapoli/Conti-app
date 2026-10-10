@@ -195,6 +195,7 @@ function render() {
   $("month-notice").textContent = notes.join(" ");
 
   renderWorth();
+  renderAlerts();
   renderTiles(m, prev);
   renderTrend();
   renderCategories(m, prev);
@@ -790,6 +791,7 @@ function openTrip(id) {
         h("span", { text: fmt(t.eur) }),
         h("button", { class: "btn ghost small-btn", type: "button", title: "Togli dal viaggio", text: "Togli",
           onclick: () => tripAction({ azione: "togli", id: v.id, movimento: t.id }) })))),
+      splitSection(v),
       ...(v.esclusi.length ? [h("h3", { class: "subhead", text: "Tolti a mano" }),
         h("div", { class: "trip-tx" }, ...v.esclusi.map((tid) => byId[tid]).filter(Boolean).map((t) => h("div", { class: "internal-row trip-line muted" },
           h("span", { text: `${fmtDate(t.data)} · ${t.descrizione}` }), h("span", { text: fmt(t.eur) }),
@@ -798,6 +800,65 @@ function openTrip(id) {
   }
   if (!$("trip-dialog").open) $("trip-dialog").showModal();
 }
+// Dividere le spese del viaggio: quota uguale per tutti; chi ha pagato per il gruppo lo indica.
+// Crea Previsti: "da ricevere" da chi ti deve soldi, "da pagare" se sei tu a doverne.
+function splitSection(v) {
+  const mine = h("input", { type: "text", inputmode: "decimal", value: v.totale.toFixed(2).replace(".", ","), "aria-label": "Spese di gruppo pagate da te" });
+  const names = h("input", { type: "text", maxlength: "120", placeholder: "es. Matteo, Luca", "aria-label": "Con chi" });
+  const rows = h("div", { class: "split-rows" });
+  const result = h("div", { class: "split-result" });
+  const create = h("button", { class: "btn primary small-btn", type: "button", text: "Crea i previsti", disabled: true });
+  const num = (s) => { const n = Number(String(s).replace(",", ".")); return Number.isFinite(n) && n >= 0 ? n : NaN; };
+  let plan = [];
+  const recalc = () => {
+    const people = [...rows.querySelectorAll("input")].map((i) => ({ nome: i.dataset.nome, pagato: num(i.value || "0") }));
+    const myPaid = num(mine.value);
+    if (!people.length || Number.isNaN(myPaid) || people.some((p) => Number.isNaN(p.pagato))) {
+      plan = []; create.disabled = true;
+      return result.replaceChildren(h("p", { class: "muted small", text: "Scrivi con chi hai diviso: la quota si calcola da sola." }));
+    }
+    const total = myPaid + people.reduce((a, p) => a + p.pagato, 0);
+    const share = total / (people.length + 1);
+    plan = people.map((p) => ({ ...p, saldo: Math.round((share - p.pagato) * 100) / 100 })).filter((p) => Math.abs(p.saldo) >= 0.01);
+    create.disabled = !plan.length;
+    result.replaceChildren(
+      h("p", { class: "small", text: `Spesa del gruppo ${fmt(total)} · quota a testa ${fmt(share)}` }),
+      ...plan.map((p) => h("p", { class: "small" }, h("strong", { text: p.nome }),
+        p.saldo > 0 ? ` ti deve ${fmt(p.saldo)}` : ` deve ricevere da te ${fmt(-p.saldo)}`)));
+  };
+  names.addEventListener("input", () => {
+    const list = [...new Set(names.value.split(",").map((s) => s.trim()).filter(Boolean))].slice(0, 12);
+    const old = Object.fromEntries([...rows.querySelectorAll("input")].map((i) => [i.dataset.nome, i.value]));
+    rows.replaceChildren(...list.map((n) => h("label", { class: "split-row" }, h("span", { text: `${n} ha pagato per il gruppo` }),
+      h("input", { type: "text", inputmode: "decimal", placeholder: "0", value: old[n] || "", "data-nome": n, oninput: recalc }))));
+    recalc();
+  });
+  mine.addEventListener("input", recalc);
+  create.addEventListener("click", async () => {
+    create.disabled = true;
+    const when = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+    let res = null;
+    for (const p of plan) {
+      res = await api("/api/previsti", { azione: "salva", tipo: p.saldo > 0 ? "entrata" : "spesa", data: when,
+        importo: Math.abs(p.saldo).toFixed(2), valuta: "EUR",
+        descrizione: p.saldo > 0 ? `${v.nome}: quota di ${p.nome}` : `${v.nome}: da dare a ${p.nome}` });
+      if (!res.ok) break;
+    }
+    if (!res?.ok) {
+      create.disabled = false;
+      return toast(res?.payload?.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : res?.payload?.errore || "Non riuscito.");
+    }
+    setData(res.payload.dati, current().key);
+    render();
+    toast(`Creati ${plan.length} previsti ✓ Li trovi nel riquadro Previsti.`);
+  });
+  recalc();
+  return h("details", { class: "split" }, h("summary", { text: "Dividi le spese con altri" }),
+    h("label", { class: "field" }, h("span", { text: "Spese di gruppo pagate da te" }), mine),
+    h("label", { class: "field" }, h("span", { text: "Con chi (nomi separati da virgola)" }), names),
+    rows, result, h("div", { class: "dialog-actions" }, h("span", { class: "spacer" }), create));
+}
+
 async function tripAction(body) {
   $("trip-save").disabled = true;
   const { ok, payload } = await api("/api/viaggi", body);
@@ -933,6 +994,28 @@ $("cash-delete").addEventListener("click", () => saveCash("elimina"));
 for (const id of ["add-cash", "add-cash-2"]) $(id).addEventListener("click", () => openCash(null));
 $("add-plan").addEventListener("click", () => openPlan(null));
 $("add-initial").addEventListener("click", () => openInitial(null));
+
+// ── da controllare: doppi addebiti, spese insolite, abbonamenti, movimenti mancanti ──
+function renderAlerts() {
+  const list = state.data.avvisi || [];
+  $("alerts-card").hidden = !list.length;
+  if (!list.length) return;
+  const byId = Object.fromEntries(state.data.movimenti.map((t) => [t.id, t]));
+  $("alerts-body").replaceChildren(...list.map((a) => h("div", { class: "alert-row" },
+    h("span", { class: `status-icon st-${a.tipo === "mancanti" || a.tipo === "doppio" ? "critical" : "warning"}`, "aria-hidden": "true", text: "!" }),
+    h("span", { class: "alert-text", text: a.testo }),
+    h("span", { class: "alert-actions" },
+      a.movimenti.length && byId[a.movimenti.at(-1)] ? h("button", { class: "btn ghost small-btn", type: "button", text: "Vedi",
+        onclick: () => openEdit(byId[a.movimenti.at(-1)]) }) : null,
+      h("button", { class: "btn small-btn", type: "button", text: "Va bene", title: "Non mostrarlo più",
+        onclick: async (e) => {
+          e.target.disabled = true;
+          const { ok, payload } = await api("/api/avvisi", { azione: "ok", id: a.id });
+          if (!ok) { e.target.disabled = false; return toast(payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Non riuscito."); }
+          setData(payload.dati, current().key);
+          render();
+        } })))));
+}
 
 // ── patrimonio: saldi dei conti + contanti (niente investimenti) ────────
 function renderWorth() {

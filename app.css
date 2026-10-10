@@ -497,3 +497,27 @@ dialog h2 { font-size: 18px; }
 }
 .link-btn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 .token-expiry { margin-top: 12px; }
+
+/* dividere le spese del viaggio */
+details.split { margin-top: 14px; border: 1px solid var(--ring); border-radius: 12px; padding: 10px 12px; }
+details.split summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details.split[open] summary { margin-bottom: 10px; }
+details.split .field { margin-top: 8px; }
+.split-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.split-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 8px; align-items: center; font-size: 14px; }
+.split-row input, details.split .field input { font: 15px system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--ring); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.split-result { margin-top: 8px; }
+.split-result p { margin: 4px 0; }
+@media (max-width: 640px) { .split-row input, details.split .field input { font-size: 16px; } }
+
+/* da controllare */
+.card.alerts { margin-bottom: 16px; border-color: color-mix(in srgb, var(--warning) 55%, var(--ring)); }
+.alert-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
+.alert-row:last-child { border-bottom: 0; }
+.alert-actions { display: flex; gap: 6px; }
+@media (max-width: 640px) {
+  .card.alerts { margin-bottom: 12px; }
+  .alert-row { grid-template-columns: auto minmax(0, 1fr); }
+  .alert-actions { grid-column: 2; }
+}
