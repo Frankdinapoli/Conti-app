@@ -136,6 +136,17 @@
           </header>
           <div id="wallet-body"></div>
         </article>
+
+        <article class="card" id="plan-card">
+          <header class="card-head">
+            <div>
+              <h2>Previsti</h2>
+              <p class="muted small">Entrate che aspetti e spese in arrivo · non entrano nei totali</p>
+            </div>
+            <button class="btn" id="add-plan" type="button">+ Previsto</button>
+          </header>
+          <div id="plan-body"></div>
+        </article>
       </section>
 
       <article class="card wide" id="year-card" hidden>
@@ -203,19 +214,20 @@
     <form method="dialog" id="cash-form" autocomplete="off">
       <h2 id="cash-title">Registra contanti</h2>
       <div class="segmented tipo" role="radiogroup" aria-label="Tipo">
-        <label><input type="radio" name="tipo" value="spesa" checked><span>Spesa</span></label>
-        <label><input type="radio" name="tipo" value="entrata"><span>Entrata</span></label>
+        <label><input type="radio" name="tipo" value="spesa" checked><span id="tipo-spesa">Spesa</span></label>
+        <label><input type="radio" name="tipo" value="entrata"><span id="tipo-entrata">Entrata</span></label>
       </div>
       <div class="field-row">
         <label class="field"><span>Importo</span><input id="cash-amount" inputmode="decimal" placeholder="0,00" required pattern="[0-9]+([.,][0-9]{1,2})?"></label>
         <label class="field narrow"><span>Valuta</span>
           <select id="cash-currency"><option>EUR</option><option>DKK</option><option>SEK</option><option>NOK</option><option>CHF</option><option>GBP</option><option>USD</option></select>
         </label>
-        <label class="field narrow"><span>Data</span><input id="cash-date" type="date" required></label>
+        <label class="field narrow"><span id="cash-date-label">Data</span><input id="cash-date" type="date" required></label>
       </div>
       <label class="field"><span>Descrizione</span><input id="cash-desc" maxlength="80" placeholder="es. Caffè al bar" required></label>
-      <label class="field"><span>Categoria</span><input id="cash-cat" list="cash-cat-list" maxlength="40" placeholder="es. Ristoranti e bar" required>
+      <label class="field" id="cash-cat-field"><span>Categoria</span><input id="cash-cat" list="cash-cat-list" maxlength="40" placeholder="es. Ristoranti e bar" required>
         <datalist id="cash-cat-list"></datalist></label>
+      <p class="hint" id="cash-hint" hidden>Promemoria: non entra in statistiche, report e budget. Quando sul conto arriva un movimento simile, l'app te lo propone.</p>
       <div class="error" id="cash-error" hidden></div>
       <div class="dialog-actions">
         <button type="button" class="btn ghost danger" id="cash-delete" hidden>Elimina</button>

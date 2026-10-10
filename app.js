@@ -171,6 +171,7 @@ function render() {
   renderBudget(m);
   renderInternal(m);
   renderWallet(m);
+  renderPlanned();
   renderYear(m);
   renderFilters(m);
   renderTransactions();
@@ -618,10 +619,38 @@ $("edit-form").addEventListener("submit", (e) => {
 });
 $("edit-cancel").addEventListener("click", () => $("edit-dialog").close());
 $("edit-reset").addEventListener("click", () => saveEdit("ripristina"));
-// ── contanti registrati a mano ──────────────────────────────────────────
+// ── contanti registrati a mano e previsti (stessa finestra) ─────────────
 let cashEditing = null;
+let entryMode = "contanti";  // oppure "previsti"
+function setEntryMode(mode) {
+  entryMode = mode;
+  const plan = mode === "previsti";
+  $("tipo-spesa").textContent = plan ? "Da pagare" : "Spesa";
+  $("tipo-entrata").textContent = plan ? "Da ricevere" : "Entrata";
+  $("cash-date-label").textContent = plan ? "Quando" : "Data";
+  $("cash-cat-field").hidden = plan;
+  $("cash-cat").required = !plan;
+  $("cash-hint").hidden = !plan;
+  $("cash-desc").placeholder = plan ? "es. Matteo mi restituisce la cena" : "es. Caffè al bar";
+}
+function openPlan(id) {
+  const e = id ? (state.data.previsti || []).find((p) => p.id === id) : null;
+  setEntryMode("previsti");
+  cashEditing = e ? id : null;
+  $("cash-title").textContent = e ? "Modifica previsto" : "Nuovo previsto";
+  $("cash-form").elements.tipo.value = e && e.importo > 0 ? "entrata" : "spesa";
+  $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
+  $("cash-amount").value = e ? Math.abs(e.importo).toFixed(2) : "";
+  $("cash-currency").value = e ? e.valuta : "EUR";
+  $("cash-desc").value = e ? e.descrizione : "";
+  $("cash-delete").hidden = !e;
+  $("cash-error").hidden = true;
+  $("cash-dialog").showModal();
+  (e ? $("cash-desc") : $("cash-amount")).focus();
+}
 function openCash(id) {
   const e = id ? state.data.contanti[id] : null;
+  setEntryMode("contanti");
   cashEditing = e ? id : null;
   $("cash-title").textContent = e ? "Modifica contanti" : "Registra contanti";
   const amount = e ? Number(e.importo) : 0;
@@ -639,16 +668,19 @@ function openCash(id) {
   $("cash-dialog").showModal();
   (e ? $("cash-desc") : $("cash-amount")).focus();
 }
-async function saveCash(action) {
+async function saveCash(action, planId) {
   const f = $("cash-form").elements;
-  const body = action === "elimina" ? { azione: "elimina", id: cashEditing } : {
+  const plan = entryMode === "previsti" || planId;
+  const body = planId ? { azione: "elimina", id: planId } : action === "elimina" ? { azione: "elimina", id: cashEditing } : {
     azione: "salva", id: cashEditing, tipo: f.tipo.value, data: $("cash-date").value,
     importo: $("cash-amount").value.replace(",", "."), valuta: $("cash-currency").value,
     descrizione: $("cash-desc").value, categoria: $("cash-cat").value,
   };
+  if (plan) delete body.categoria;
   $("cash-save").disabled = true;
-  const { ok, payload } = await api("/api/contanti", body);
+  const { ok, payload } = await api(plan ? "/api/previsti" : "/api/contanti", body);
   $("cash-save").disabled = false;
+  if (!ok && planId) return toast(payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Non riuscito.");
   if (!ok) {
     $("cash-error").hidden = false;
     $("cash-error").textContent = payload.sola_lettura
@@ -656,16 +688,59 @@ async function saveCash(action) {
       : payload.errore || "Salvataggio non riuscito.";
     return;
   }
-  try { localStorage.setItem("conti-valuta", $("cash-currency").value); } catch { /* opzionale */ }
+  if (!plan) try { localStorage.setItem("conti-valuta", $("cash-currency").value); } catch { /* opzionale */ }
   setData(payload.dati, current().key);
-  $("cash-dialog").close();
+  if ($("cash-dialog").open) $("cash-dialog").close();
   render();
-  toast(payload.avviso || (action === "elimina" ? "Movimento in contanti eliminato." : "Contanti salvati ✓"));
+  toast(plan
+    ? (planId ? "Fatto ✓ Tolto dai previsti." : action === "elimina" ? "Tolto dai previsti." : "Previsto salvato ✓")
+    : payload.avviso || (action === "elimina" ? "Movimento in contanti eliminato." : "Contanti salvati ✓"));
 }
 $("cash-form").addEventListener("submit", (e) => { e.preventDefault(); saveCash("salva"); });
 $("cash-cancel").addEventListener("click", () => $("cash-dialog").close());
 $("cash-delete").addEventListener("click", () => saveCash("elimina"));
 for (const id of ["add-cash", "add-cash-2"]) $(id).addEventListener("click", () => openCash(null));
+$("add-plan").addEventListener("click", () => openPlan(null));
+
+// ── previsti: promemoria, mai nei totali ────────────────────────────────
+function whenText(iso) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [y, mo, d] = iso.split("-").map(Number);
+  const days = Math.round((new Date(y, mo - 1, d) - today) / 864e5);
+  if (days === 0) return "oggi";
+  if (days === 1) return "domani";
+  if (days < 0) return `in ritardo di ${-days} ${days === -1 ? "giorno" : "giorni"}`;
+  return days <= 31 ? `tra ${days} giorni` : fmtDate(iso);
+}
+function renderPlanned() {
+  const list = state.data.previsti || [];
+  const box = $("plan-body");
+  if (!list.length) {
+    return box.replaceChildren(h("p", { class: "empty", text: "Nessuna voce. Con + Previsto annoti un pagamento che aspetti o una spesa che sai di dover fare: non cambia i totali." }));
+  }
+  const known = list.filter((p) => p.eur != null);
+  const inc = known.filter((p) => p.eur > 0).reduce((a, p) => a + p.eur, 0);
+  const out = known.filter((p) => p.eur < 0).reduce((a, p) => a - p.eur, 0);
+  const other = list.length - known.length;
+  box.replaceChildren(
+    h("div", { class: "plan-sum" },
+      h("div", {}, h("span", { class: "muted small", text: "Da ricevere" }), h("strong", { class: "pos-amt", text: fmt(inc) })),
+      h("div", {}, h("span", { class: "muted small", text: "Da pagare" }), h("strong", { text: fmt(out) })),
+      h("div", {}, h("span", { class: "muted small", text: "Netto" }), h("strong", { class: inc - out < 0 ? "neg-amt" : null, text: (inc - out > 0 ? "+" : "") + fmt(inc - out) }))),
+    other ? h("p", { class: "muted small", text: `${other} ${other === 1 ? "voce" : "voci"} in altra valuta non ${other === 1 ? "è" : "sono"} nei totali qui sopra.` }) : null,
+    ...list.map((p) => h("div", { class: `plan-row${p.scaduto ? " late" : ""}` },
+      h("button", { class: "plan-main", type: "button", title: "Clicca per modificare", onclick: () => openPlan(p.id) },
+        h("span", { class: "plan-when" },
+          p.scaduto ? h("span", { class: "status-icon st-warning", "aria-hidden": "true", text: "!" }) : null,
+          h("span", { text: whenText(p.data) })),
+        h("span", { class: "plan-desc", text: p.descrizione }),
+        h("span", { class: `plan-amt${p.importo > 0 ? " pos-amt" : ""}`,
+          text: p.valuta === "EUR" ? (p.importo > 0 ? "+" : "") + fmt(p.importo) : `${p.importo > 0 ? "+" : ""}${NUM.format(p.importo)} ${p.valuta}` })),
+      p.forse ? h("div", { class: "plan-match" },
+        h("span", { class: "status-icon st-good", "aria-hidden": "true", text: "✓" }),
+        h("span", { class: "plan-match-text", text: `Arrivato? «${p.forse.descrizione}» del ${fmtDate(p.forse.data)}, ${p.forse.valuta === "EUR" ? fmt(p.forse.importo) : `${NUM.format(p.forse.importo)} ${p.forse.valuta}`} (${p.forse.banca})` }),
+        h("button", { class: "btn small-btn", type: "button", onclick: () => saveCash("elimina", p.id), text: "Segna come fatto" })) : null)));
+}
 
 let toastTimer;
 function toast(text) {

@@ -10,7 +10,7 @@
   const REPO = "Frankdinapoli/Conti";
   const API = "https://api.github.com";
   const STORE = "conti-gh";
-  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json"]);
+  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json"]);
   const CATEGORY_RE = /^[\p{L}\p{N}_'/&.,() -]{2,40}$/u;
   const POLL_MS = 15000;
   const POLL_MAX = 40;  // ~10 minuti
@@ -291,6 +291,72 @@
       : "Contanti salvati ✓ Totali e grafici si aggiornano tra 1-2 minuti." });
   }
 
+  // Previsti: promemoria di entrate/spese attese (data/previsti.json), mai nei totali.
+  async function planned(body) {
+    const action = body.azione;
+    if (!["salva", "elimina"].includes(action)) return reply(400, { errore: "richiesta non valida" });
+    if (!snapshot) return reply(409, { errore: "dati non ancora caricati" });
+    const id = String(body.id || "");
+    const known = (view().previsti || []).find((p) => p.id === id);
+    if (id && !known) return reply(400, { errore: "voce non trovata" });
+
+    let entry = null, message;
+    if (action === "elimina") {
+      if (!id) return reply(400, { errore: "voce non trovata" });
+      message = "Previsti: tolta una voce (app)";
+    } else {
+      const when = String(body.data || "");
+      const amountText = String(body.importo || "").trim().replace(",", ".");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(when) || Number.isNaN(Date.parse(when)) || !/^\d+(\.\d{1,2})?$/.test(amountText)) {
+        return reply(400, { errore: "data o importo non validi" });
+      }
+      const limit = new Date(Date.now() + 5 * 366 * 864e5).toISOString().slice(0, 10);
+      if (when < "2000-01-01" || when > limit) return reply(400, { errore: "data non valida" });
+      const amount = Number(amountText);
+      if (!(amount > 0 && amount <= 1000000)) return reply(400, { errore: "l'importo deve essere positivo" });
+      if (!["spesa", "entrata"].includes(body.tipo)) return reply(400, { errore: "tipo non valido" });
+      const currency = String(body.valuta || "EUR").toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency)) return reply(400, { errore: "valuta non valida" });
+      const desc = clean(body.descrizione, 80);
+      if (!desc) return reply(400, { errore: "scrivi una descrizione" });
+      const signed = `${body.tipo === "spesa" ? "-" : ""}${amount.toFixed(2)}`;
+      const rnd = crypto.getRandomValues(new Uint8Array(8));
+      entry = {
+        id: id || `plan-${[...rnd].map((b) => b.toString(16).padStart(2, "0")).join("")}`,
+        data: when,
+        creato: known?.creato || today(),
+        descrizione: desc,
+        importo: signed,
+        valuta: currency,
+        eur: currency === "EUR" ? signed : null,
+      };
+      message = id ? "Previsti: modificata una voce (app)" : "Previsti: nuova voce (app)";
+    }
+
+    const commit = await writeJson("data/previsti.json", (cur) => {
+      let list = (Array.isArray(cur.voci) ? cur.voci : []).filter((e) => e && String(e.id || "").startsWith("plan-"));
+      if (id && !list.some((e) => e.id === id)) throw new Fail(400, { errore: "voce non trovata" });
+      list = list.filter((e) => e.id !== id);
+      if (entry) list.push(entry);
+      list.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      return JSON.stringify({
+        _nota: "Scritto dall'app Conti: entrate e spese previste. Non entrano nelle statistiche.",
+        versione: 1,
+        voci: list,
+      }, null, 2) + "\n";
+    }, message);
+
+    remember(commit, (d) => {
+      d.previsti = (d.previsti || []).filter((p) => p.id !== id);
+      if (!entry) return;
+      const amount = Number(entry.importo);
+      d.previsti.push({ ...entry, importo: amount, eur: entry.eur == null ? null : amount,
+        scaduto: entry.data < today(), forse: null });
+      d.previsti.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : a.id < b.id ? -1 : 1));
+    });
+    return reply(200, { ok: true, dati: view() });
+  }
+
   async function setToken(body) {
     const candidate = String(body.token || "").trim();
     if (!candidate || candidate.length > 400 || /\s/.test(candidate)) return reply(400, { errore: "token non valido" });
@@ -328,6 +394,7 @@
       }
       if (route === "/api/correzione") return await correction(body || {});
       if (route === "/api/contanti") return await cash(body || {});
+      if (route === "/api/previsti") return await planned(body || {});
       return reply(404, { errore: "non disponibile sul telefono" });
     } catch (e) {
       if (e instanceof Fail) return reply(e.status, e.payload);
