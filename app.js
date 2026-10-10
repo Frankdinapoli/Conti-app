@@ -485,8 +485,9 @@ function renderTransactions() {
     h("td", { class: "date", text: fmtDate(t.data) }),
     h("td", {}, t.descrizione, amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
       onclick: () => openAmex(t.id) }) : null),
-    h("td", {}, t.contanti === "portafoglio"
-      ? h("span", { class: `tag ${t.gruppo}`, title: "Contante prelevato: entra nel portafoglio", text: t.categoria })
+    h("td", {}, t.contanti === "portafoglio" || t.virtuale
+      ? h("span", { class: `tag ${t.gruppo}`, title: t.id.startsWith("amexpay-") ? "Pagamento della carta: soldi spostati da Isybank alla Amex"
+        : "Contante prelevato: entra nel portafoglio", text: t.categoria })
       : h("button", {
         class: `tag ${t.gruppo}${t.corretto || t.contanti ? " learned" : ""}`, type: "button",
         title: t.contanti ? "Contanti registrati da te · clicca per modificare" : t.corretto ? "Categoria scelta da te · clicca per cambiarla" : "Clicca per cambiare la categoria",
