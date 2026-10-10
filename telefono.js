@@ -10,7 +10,7 @@
   const REPO = "Frankdinapoli/Conti";
   const API = "https://api.github.com";
   const STORE = "conti-gh";
-  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json", "data/avvisi.json"]);
+  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json", "data/avvisi.json", "data/amex.json"]);
   const EXPIRY_STORE = "conti-gh-scadenza";
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const CATEGORY_RE = /^[\p{L}\p{N}_'/&.,() -]{2,40}$/u;
@@ -497,6 +497,48 @@
     return reply(200, { ok: true, dati: view() });
   }
 
+  // Amex: spese inserite a mano e abbonamenti sulla carta (data/amex.json). Gli estratti si importano dal Mac.
+  async function amexEntry(body) {
+    const kind = body.tipo, action = body.azione;
+    if (!["manuale", "abbonamento", "estratto"].includes(kind) || !["salva", "elimina"].includes(action)) return reply(400, { errore: "richiesta non valida" });
+    if (kind === "estratto" && action === "salva") return reply(400, { errore: "l'estratto conto si importa dall'app del Mac" });
+    if (!snapshot) return reply(409, { errore: "dati non ancora caricati" });
+    const key = { manuale: "manuali", abbonamento: "abbonamenti", estratto: "estratti" }[kind];
+    const id = String(body.id || "");
+    if ((id || action === "elimina") && !((view().amex || {})[key] || []).some((x) => x.id === id)) return reply(400, { errore: "voce non trovata" });
+    let entry = null;
+    if (action === "salva") {
+      const when = String(body.data || ""), amountText = String(body.importo || "").trim().replace(",", ".");
+      if (!DATE_RE.test(when) || !/^\d+(\.\d{1,2})?$/.test(amountText) || !(Number(amountText) > 0 && Number(amountText) <= 100000)) {
+        return reply(400, { errore: "data o importo non validi" });
+      }
+      const desc = clean(body.descrizione, 60);
+      if (!desc) return reply(400, { errore: "scrivi una descrizione" });
+      const rnd = crypto.getRandomValues(new Uint8Array(8));
+      const newId = id || `${kind === "manuale" ? "amexm-" : "amexsub-"}${[...rnd].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+      const amount = Number(amountText).toFixed(2);
+      if (kind === "manuale") entry = { id: newId, data: when, descrizione: desc, importo: amount };
+      else {
+        if (!["mensile", "annuale"].includes(body.frequenza)) return reply(400, { errore: "frequenza non valida" });
+        entry = { id: newId, nome: desc, importo: amount, frequenza: body.frequenza, dal: when };
+      }
+    }
+    const commit = await writeJson("data/amex.json", (cur) => {
+      const out = { estratti: [], manuali: [], abbonamenti: [] };
+      for (const k of Object.keys(out)) out[k] = Array.isArray(cur[k]) ? cur[k] : [];
+      if (id && !out[key].some((x) => x.id === id)) throw new Fail(400, { errore: "voce non trovata" });
+      out[key] = out[key].filter((x) => x.id !== id);
+      if (entry) out[key].push(entry);
+      return JSON.stringify({ _nota: "Scritto dall'app Conti: dettaglio degli addebiti American Express.", versione: 1, ...out }, null, 2) + "\n";
+    }, `Amex: ${kind} aggiornato (app)`);
+    remember(commit, (d) => {
+      if (!d.amex) return;
+      d.amex[key] = (d.amex[key] || []).filter((x) => x.id !== id);
+      if (entry) d.amex[key].push(entry);
+    });
+    return reply(200, { ok: true, dati: view(), avviso: "Salvato ✓ Il dettaglio si aggiorna tra 1-2 minuti." });
+  }
+
   async function setToken(body) {
     const candidate = String(body.token || "").trim();
     if (!candidate || candidate.length > 400 || /\s/.test(candidate)) return reply(400, { errore: "token non valido" });
@@ -547,6 +589,7 @@
       if (route === "/api/previsti") return await planned(body || {});
       if (route === "/api/viaggi") return await trips(body || {});
       if (route === "/api/avvisi") return await alertOk(body || {});
+      if (route === "/api/amex") return await amexEntry(body || {});
       if (route === "/api/scadenza") return setExpiry((body || {}).scadenza);
       return reply(404, { errore: "non disponibile sul telefono" });
     } catch (e) {

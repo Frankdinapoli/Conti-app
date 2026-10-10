@@ -521,3 +521,11 @@ details.split .field { margin-top: 8px; }
   .alert-row { grid-template-columns: auto minmax(0, 1fr); }
   .alert-actions { grid-column: 2; }
 }
+
+/* American Express */
+.amex-link { font-size: 12px; margin-left: 4px; }
+.internal-row.trip-line.warn span:first-child { color: var(--critical-text); font-weight: 600; }
+.internal-row.trip-line.link { cursor: pointer; }
+#amex-dialog { width: min(620px, 94vw); }
+.amex-dialog .trip-tx { max-height: 60vh; }
+.subhead .link-btn { font-size: 13px; font-weight: 500; margin-left: 6px; }

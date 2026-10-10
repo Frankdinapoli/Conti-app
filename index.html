@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="152c3b74f60e">
+  <meta name="conti-versione" content="bf1498ec9672">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=90aa11cc3c">
+  <link rel="stylesheet" href="app.css?v=a35f0bd0a9">
 </head>
 <body>
   <header class="topbar">
@@ -179,6 +179,21 @@
           <div id="recurring-body"></div>
         </article>
 
+        <article class="card" id="amex-card" hidden>
+          <header class="card-head">
+            <div>
+              <h2>Carta American Express</h2>
+              <p class="muted small">L'addebito mensile è la spesa; qui vedi cosa contiene</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn ghost" id="amex-import" type="button">Importa estratto (PDF)</button>
+              <button class="btn" id="amex-add" type="button">+ Spesa Amex</button>
+            </div>
+          </header>
+          <input type="file" id="amex-file" accept="application/pdf,.pdf" hidden>
+          <div id="amex-body"></div>
+        </article>
+
         <article class="card" id="trips-card">
           <header class="card-head">
             <div>
@@ -296,6 +311,18 @@
     </form>
   </dialog>
 
+  <dialog id="amex-dialog" aria-labelledby="amex-title">
+    <div class="amex-dialog">
+      <h2 id="amex-title">Addebito American Express</h2>
+      <p class="edit-desc" id="amex-sub"></p>
+      <div id="amex-items"></div>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="amex-close">Chiudi</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="trip-dialog" aria-labelledby="trip-title">
     <form method="dialog" id="trip-form" autocomplete="off">
       <h2 id="trip-title">Nuovo viaggio</h2>
@@ -317,7 +344,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=46b9f0ab72"></script>
-  <script src="app.js?v=21b9b2b4ee"></script>
+  <script src="telefono.js?v=7baaa77246"></script>
+  <script src="app.js?v=60c61d0b58"></script>
 </body>
 </html>

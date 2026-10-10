@@ -203,6 +203,7 @@ function render() {
   renderInternal(m);
   renderWallet(m);
   renderRecurring();
+  renderAmex();
   renderTrips();
   if (tripEditing && $("trip-dialog")?.open && state.data.viaggi?.some((v) => v.id === tripEditing)) openTrip(tripEditing);
   renderPlanned();
@@ -482,7 +483,8 @@ function renderTransactions() {
   if (!rows.length) return body.replaceChildren(h("tr", {}, h("td", { colspan: 5, class: "empty", text: "Nessun movimento con questi filtri." })));
   body.replaceChildren(...rows.map((t) => h("tr", {},
     h("td", { class: "date", text: fmtDate(t.data) }),
-    h("td", { text: t.descrizione }),
+    h("td", {}, t.descrizione, amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
+      onclick: () => openAmex(t.id) }) : null),
     h("td", {}, t.contanti === "portafoglio"
       ? h("span", { class: `tag ${t.gruppo}`, title: "Contante prelevato: entra nel portafoglio", text: t.categoria })
       : h("button", {
@@ -737,8 +739,8 @@ function renderRecurring() {
       h("div", {}, h("span", { class: "muted small", text: "Al mese" }), h("strong", { text: fmt(month) })),
       h("div", {}, h("span", { class: "muted small", text: "All'anno" }), h("strong", { text: fmt(month * 12) }))),
     ...list.map((x) => h("div", { class: "internal-row rec-row" },
-      h("span", {}, h("strong", { text: x.nome }), h("small", { class: "muted", text: ` · ${x.categoria} · ${x.frequenza}` })),
-      h("span", { class: "muted", text: `prossimo ${fmtDate(x.prossimo)}` }),
+      h("span", {}, h("strong", { text: x.nome }), h("small", { class: "muted", text: ` · ${x.categoria} · ${x.frequenza}${x.carta ? ` · ${x.carta}` : ""}` })),
+      h("span", { class: "muted", text: x.prossimo ? `prossimo ${fmtDate(x.prossimo)}` : "" }),
       h("span", { text: fmt(x.importo) }))));
 }
 
@@ -890,8 +892,9 @@ let cashEditing = null;
 let entryMode = "contanti";  // oppure "previsti"
 function setEntryMode(mode) {
   entryMode = mode;
+  const amexMode = mode === "amex" || mode === "amexsub";
   const init = mode === "iniziale";
-  $("cash-tipo").hidden = init;
+  $("cash-tipo").hidden = init || mode === "amex";
   $("cash-desc-field").hidden = init;
   $("cash-desc").required = !init;
   const plan = mode === "previsti";
@@ -905,6 +908,22 @@ function setEntryMode(mode) {
     ? "Il contante che avevi già in tasca da quella data. Entra solo nel portafoglio e nel patrimonio: non è un'entrata, una spesa o un prelievo."
     : "Promemoria: non entra in statistiche, report e budget. Quando sul conto arriva un movimento simile, l'app te lo propone.";
   if (init) $("cash-date-label").textContent = "Da quando";
+  if (amexMode) {
+    $("cash-cat-field").hidden = true;
+    $("cash-cat").required = false;
+    $("cash-currency").value = "EUR";
+    $("cash-currency").closest(".field").hidden = true;
+    $("cash-hint").hidden = false;
+    $("cash-date-label").textContent = mode === "amexsub" ? "Primo addebito" : "Data";
+    $("tipo-spesa").textContent = "Mensile";
+    $("tipo-entrata").textContent = "Annuale";
+    $("cash-desc").placeholder = mode === "amexsub" ? "es. Netflix" : "es. Ristorante";
+    $("cash-hint").textContent = mode === "amexsub"
+      ? "Abbonamento pagato con la Amex: compare tra le spese ricorrenti e nel dettaglio dell'addebito. Non si somma alle spese (c'è già l'addebito)."
+      : "Spesa fatta con la Amex: finisce nel dettaglio del prossimo addebito. Non si somma alle spese (c'è già l'addebito); quando importi l'estratto conto la sostituisce.";
+  } else {
+    $("cash-currency").closest(".field").hidden = false;
+  }
   $("cash-desc").placeholder = plan ? "es. Matteo mi restituisce la cena" : "es. Caffè al bar";
 }
 function openPlan(id) {
@@ -964,6 +983,25 @@ async function saveCash(action, planId) {
     descrizione: $("cash-desc").value, categoria: $("cash-cat").value,
   };
   if (plan) delete body.categoria;
+  if ((entryMode === "amex" || entryMode === "amexsub") && !planId) {
+    const sub = entryMode === "amexsub";
+    const req = action === "elimina" ? { azione: "elimina", tipo: sub ? "abbonamento" : "manuale", id: cashEditing }
+      : { azione: "salva", tipo: sub ? "abbonamento" : "manuale", id: cashEditing, data: $("cash-date").value,
+        importo: $("cash-amount").value.replace(",", "."), descrizione: $("cash-desc").value,
+        frequenza: f.tipo.value === "entrata" ? "annuale" : "mensile" };
+    $("cash-save").disabled = true;
+    const res = await api("/api/amex", req);
+    $("cash-save").disabled = false;
+    if (!res.ok) {
+      $("cash-error").hidden = false;
+      $("cash-error").textContent = res.payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : res.payload.errore || "Salvataggio non riuscito.";
+      return;
+    }
+    setData(res.payload.dati, current().key);
+    $("cash-dialog").close();
+    render();
+    return toast(action === "elimina" ? "Eliminato." : "Salvato ✓");
+  }
   if (entryMode === "iniziale" && !planId) {
     body.tipo = "iniziale";
     delete body.categoria; delete body.descrizione;
@@ -1070,6 +1108,96 @@ function renderWorth() {
   svg.append(hit);
   box.replaceChildren(svg);
 }
+
+// ── American Express: dettaglio degli addebiti ──────────────────────────
+const amexOf = (txId) => state.data.amex?.addebiti?.find((d) => d.id === txId);
+function amexLines(voci, extra) {
+  return h("div", { class: "trip-tx" }, ...voci.map((v) => h("div", { class: `internal-row trip-line${v.fonte !== "estratto" ? " link" : ""}`,
+    onclick: v.fonte === "manuale" ? () => openAmexEntry("amex", v.id) : v.fonte === "abbonamento" ? () => openAmexEntry("amexsub", v.id.split(":")[0]) : null },
+    h("span", {}, h("span", { class: "muted", text: `${fmtDate(v.data)} · ` }), v.descrizione,
+      h("small", { class: "muted", text: ` · ${v.categoria}${v.fonte === "abbonamento" ? " · abbonamento" : v.fonte === "manuale" ? " · inserita da te" : ""}` })),
+    h("span", { class: v.importo < 0 ? "pos-amt" : null, text: fmt(v.importo) }), h("span"))), extra || null);
+}
+function openAmex(txId, upcoming) {
+  const d = upcoming || amexOf(txId);
+  if (!d) return;
+  $("amex-title").textContent = upcoming ? (d.stimato ? "Prossimo addebito Amex (finora)" : "Prossimo addebito Amex") : "Addebito American Express";
+  $("amex-sub").textContent = `${d.stimato ? "Stimato il" : "Il"} ${fmtDate(d.data)} · ${fmt(d.importo)}`
+    + (d.dal ? ` · spese dal ${fmtDate(d.dal)} al ${fmtDate(d.al)}` : "")
+    + (d.fonte === "estratto" ? " · dall'estratto conto" : " · spese inserite da te e abbonamenti");
+  const missing = d.non_registrate > 0.005
+    ? h("div", { class: "internal-row trip-line warn" }, h("span", { text: "Spese non registrate (senza dettaglio)" }), h("span", { text: fmt(d.non_registrate) }), h("span"))
+    : null;
+  $("amex-items").replaceChildren(d.voci.length || missing ? amexLines(d.voci, missing)
+    : h("p", { class: "empty", text: "Nessuna voce: importa l'estratto conto o aggiungi le spese a mano." }));
+  if (!$("amex-dialog").open) $("amex-dialog").showModal();
+}
+$("amex-close").addEventListener("click", () => $("amex-dialog").close());
+function openAmexEntry(mode, id) {
+  const a = state.data.amex || {};
+  const e = id ? (mode === "amex" ? a.manuali : a.abbonamenti)?.find((x) => x.id === id) : null;
+  if ($("amex-dialog").open) $("amex-dialog").close();
+  setEntryMode(mode);
+  cashEditing = e ? id : null;
+  $("cash-title").textContent = mode === "amexsub" ? (e ? "Abbonamento sulla Amex" : "Nuovo abbonamento sulla Amex") : (e ? "Spesa Amex" : "Nuova spesa Amex");
+  $("cash-form").elements.tipo.value = e?.frequenza === "annuale" ? "entrata" : "spesa";
+  $("cash-date").value = e ? (e.data || e.dal) : new Date().toISOString().slice(0, 10);
+  $("cash-amount").value = e ? Number(e.importo).toFixed(2) : "";
+  $("cash-desc").value = e ? (e.descrizione || e.nome) : "";
+  $("cash-delete").hidden = !e;
+  $("cash-error").hidden = true;
+  $("cash-dialog").showModal();
+  (e ? $("cash-desc") : $("cash-amount")).focus();
+}
+function renderAmex() {
+  const a = state.data.amex;
+  $("amex-card").hidden = !a;
+  if (!a) return;
+  $("amex-import").hidden = PHONE;  // il PDF si legge nell'app del Mac
+  const rows = [];
+  for (const u of a.in_arrivo) {
+    rows.push(h("button", { class: "plan-main", type: "button", onclick: () => openAmex(null, u) },
+      h("span", { class: "plan-when", text: u.stimato ? "in corso" : `il ${fmtDate(u.data)}` }),
+      h("span", { class: "plan-desc" }, h("strong", { text: u.stimato ? "Spese registrate finora" : "Prossimo addebito" }),
+        h("small", { class: "muted", text: ` · ${u.voci.length} voci${u.fonte === "estratto" ? " · estratto conto" : ""}` })),
+      h("span", { class: "plan-amt", text: fmt(u.importo) })));
+  }
+  for (const d of a.addebiti.slice(0, 6)) {
+    rows.push(h("button", { class: "plan-main", type: "button", onclick: () => openAmex(d.id) },
+      h("span", { class: "plan-when", text: fmtDate(d.data) }),
+      h("span", { class: "plan-desc" }, "Addebito",
+        h("small", { class: "muted", text: d.fonte === "estratto" ? " · dettaglio completo"
+          : d.non_registrate > 0.005 ? ` · ${fmt(d.non_registrate)} senza dettaglio` : " · registrato da te" })),
+      h("span", { class: "plan-amt", text: fmt(d.importo) })));
+  }
+  const subs = a.abbonamenti.map((s) => h("button", { class: "plan-main", type: "button", onclick: () => openAmexEntry("amexsub", s.id) },
+    h("span", { class: "plan-when", text: s.frequenza }), h("span", { class: "plan-desc", text: s.nome }),
+    h("span", { class: "plan-amt", text: fmt(Number(s.importo)) })));
+  $("amex-body").replaceChildren(...rows,
+    h("h3", { class: "subhead" }, "Abbonamenti sulla carta ",
+      h("button", { class: "link-btn", type: "button", text: "+ aggiungi", onclick: () => openAmexEntry("amexsub", null) })),
+    ...(subs.length ? subs : [h("p", { class: "empty small", text: "Nessuno: aggiungi quelli che paghi con la Amex." })]),
+    ...(PHONE ? [h("p", { class: "muted small", text: "L'estratto conto (PDF) si importa dall'app del Mac." })] : []));
+}
+$("amex-add").addEventListener("click", () => openAmexEntry("amex", null));
+$("amex-import").addEventListener("click", () => $("amex-file").click());
+$("amex-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (file.size > 10e6) return toast("File troppo grande.");
+  toast("Leggo l'estratto conto…");
+  let r, payload = {};
+  try {
+    r = await fetch("/api/amex/estratto", { method: "POST", headers: { "Content-Type": "application/pdf" }, body: await file.arrayBuffer() });
+    payload = await r.json();
+  } catch { /* rete */ }
+  if (!r?.ok) return toast(payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : `Importazione non riuscita: ${payload.errore || "riprova"}.`);
+  setData(payload.dati, current().key);
+  render();
+  const s = payload.estratto;
+  toast(`Estratto al ${fmtDate(s.chiusura)} importato: ${s.voci} voci${s.quadra ? " ✓ il totale torna" : " · attenzione: il totale non torna, controlla"}.`);
+});
 
 // ── previsti: promemoria, mai nei totali ────────────────────────────────
 function whenText(iso) {
