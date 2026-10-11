@@ -1157,6 +1157,7 @@ function renderAmex() {
   $("amex-import").hidden = PHONE;  // il PDF si legge nell'app del Mac
   const rows = [];
   for (const u of a.in_arrivo) {
+    if (u.stimato && !u.voci.length) continue;  // nessuna spesa inserita a mano: non serve la riga
     rows.push(h("button", { class: "plan-main", type: "button", onclick: () => openAmex(null, u) },
       h("span", { class: "plan-when", text: u.stimato ? "in corso" : `il ${fmtDate(u.data)}` }),
       h("span", { class: "plan-desc" }, h("strong", { text: u.stimato ? "Spese registrate finora" : "Prossimo addebito" }),
