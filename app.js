@@ -947,7 +947,7 @@ function openPlan(id) {
   $("cash-title").textContent = e ? "Modifica previsto" : "Nuovo previsto";
   $("cash-form").elements.tipo.value = e && e.importo > 0 ? "entrata" : "spesa";
   $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
-  $("cash-amount").value = e ? Math.abs(e.importo).toFixed(2) : "";
+  $("cash-amount").value = e ? Math.abs(e.importo).toFixed(2).replace(".", ",") : "";
   $("cash-currency").value = e ? e.valuta : "EUR";
   $("cash-desc").value = e ? e.descrizione : "";
   $("cash-delete").hidden = !e;
@@ -961,7 +961,7 @@ function openInitial(id) {
   cashEditing = e ? id : null;
   $("cash-title").textContent = "Contante che hai già";
   $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
-  $("cash-amount").value = e ? Number(e.importo).toFixed(2) : "";
+  $("cash-amount").value = e ? Number(e.importo).toFixed(2).replace(".", ",") : "";
   $("cash-currency").value = e ? e.valuta : "EUR";
   $("cash-delete").hidden = !e;
   $("cash-error").hidden = true;
@@ -976,7 +976,7 @@ function openCash(id) {
   const amount = e ? Number(e.importo) : 0;
   $("cash-form").elements.tipo.value = amount > 0 ? "entrata" : "spesa";
   $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
-  $("cash-amount").value = e ? Math.abs(amount).toFixed(2) : "";
+  $("cash-amount").value = e ? Math.abs(amount).toFixed(2).replace(".", ",") : "";
   let lastCurrency = "EUR";
   try { lastCurrency = localStorage.getItem("conti-valuta") || "EUR"; } catch { /* opzionale */ }
   $("cash-currency").value = e ? e.valuta : lastCurrency;
@@ -1157,7 +1157,7 @@ function openAmexEntry(mode, id) {
   $("cash-title").textContent = mode === "amexsub" ? (e ? "Abbonamento sulla Amex" : "Nuovo abbonamento sulla Amex") : (e ? "Spesa Amex" : "Nuova spesa Amex");
   $("cash-form").elements.tipo.value = e?.frequenza === "annuale" ? "entrata" : "spesa";
   $("cash-date").value = e ? (e.data || e.dal) : new Date().toISOString().slice(0, 10);
-  $("cash-amount").value = e ? Number(e.importo).toFixed(2) : "";
+  $("cash-amount").value = e ? Number(e.importo).toFixed(2).replace(".", ",") : "";
   $("cash-desc").value = e ? (e.descrizione || e.nome) : "";
   $("cash-delete").hidden = !e;
   $("cash-error").hidden = true;

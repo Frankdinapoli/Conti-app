@@ -568,6 +568,11 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
   .rec-row span:nth-child(2) { text-align: left; }
   .filters select { flex: 1.4 1 0; }
   table.tx tr { cursor: pointer; }
+  /* campi data: su iPhone Safari hanno una larghezza minima propria e uscivano dalla finestra */
+  input[type="date"] { -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; max-width: 100%;
+    box-sizing: border-box; min-height: 44px; text-align: left; }
+  input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+  .field { min-width: 0; }
   table.tx tr { grid-template-columns: auto minmax(0, 1fr) minmax(0, max-content); }
   table.tx td:nth-child(3) { min-width: 0; max-width: 100%; }
   table.tx .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
