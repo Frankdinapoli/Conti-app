@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="207061778535">
+  <meta name="conti-versione" content="888a628248a5">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=e3bc1a8c1f">
+  <link rel="stylesheet" href="app.css?v=858f3d866f">
 </head>
 <body>
   <header class="topbar">
@@ -111,6 +111,16 @@
 
       <section class="tiles" id="tiles"></section>
 
+      <section class="card tips" id="tips-card" hidden>
+        <header class="card-head">
+          <div>
+            <h2>Consigli per spendere meno</h2>
+            <p class="muted small" id="tips-sub">Calcolati sulle tue spese degli ultimi mesi · stime prudenti</p>
+          </div>
+        </header>
+        <div id="tips-body"></div>
+      </section>
+
       <section class="grid">
         <article class="card">
           <header class="card-head">
@@ -139,8 +149,9 @@
           <header class="card-head">
             <div>
               <h2>Budget</h2>
-              <p class="muted small">Si modificano in <code>config/budget.toml</code> su GitHub</p>
+              <p class="muted small">Limiti di spesa mensili per categoria</p>
             </div>
+            <button class="btn" id="budget-edit" type="button">Modifica</button>
           </header>
           <div id="budget-list" class="budgets"></div>
         </article>
@@ -153,6 +164,16 @@
             </div>
           </header>
           <div id="internal-list"></div>
+        </article>
+
+        <article class="card" id="costs-card">
+          <header class="card-head">
+            <div>
+              <h2>Costi di banca e cambio</h2>
+              <p class="muted small">Quanto perdi cambiando tra le tue valute e in commissioni</p>
+            </div>
+          </header>
+          <div id="costs-body"></div>
         </article>
 
         <article class="card" id="wallet-card" hidden>
@@ -311,6 +332,22 @@
     </form>
   </dialog>
 
+  <dialog id="budget-dialog" aria-labelledby="budget-title">
+    <form method="dialog" id="budget-form" autocomplete="off">
+      <h2 id="budget-title">Budget mensili</h2>
+      <p class="edit-desc">Lascia vuoto per non avere un budget. Il suggerito è il 10% in meno di quanto spendi di solito
+        (ultimi 3 mesi); per le spese fisse, come l'affitto, è la spesa tipica.</p>
+      <button type="button" class="btn ghost small-btn" id="budget-all" title="Solo dove non hai un budget o dove il suggerito è più basso">Usa i suggeriti più bassi</button>
+      <div id="budget-rows" class="budget-rows"></div>
+      <div class="error" id="budget-error" hidden></div>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="budget-cancel">Annulla</button>
+        <button type="submit" class="btn primary" id="budget-save">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="amex-dialog" aria-labelledby="amex-title">
     <div class="amex-dialog">
       <h2 id="amex-title">Addebito American Express</h2>
@@ -344,7 +381,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=7baaa77246"></script>
-  <script src="app.js?v=701b6a02b4"></script>
+  <script src="telefono.js?v=236ab6b384"></script>
+  <script src="app.js?v=9ff52546ef"></script>
 </body>
 </html>

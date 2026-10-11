@@ -47,7 +47,8 @@ function buildYears(mesi) {
     interni: merge(ms, "interni", ["entrati", "usciti"]),
     budget: [],
     portafoglio: [...ms].reverse().find((m) => m.portafoglio)?.portafoglio ?? null,
-  }));
+    costi: Object.fromEntries(["cambi", "commissioni", "totale"].map((k) => [k, ms.reduce((a, m) => a + (m.costi?.[k] || 0), 0)])),
+  })).map((y) => ({ ...y, risparmio: y.entrate > 0 ? (y.saldo / y.entrate) * 100 : null }));
 }
 const periods = () => (state.view === "anno" ? state.years : state.data.mesi);
 const current = () => periods()[state.idx];
@@ -200,7 +201,9 @@ function render() {
   renderTrend();
   renderCategories(m, prev);
   renderBudget(m);
+  renderTips();
   renderInternal(m);
+  renderCosts(m);
   renderWallet(m);
   renderRecurring();
   renderAmex();
@@ -223,12 +226,19 @@ function delta(cur, before, upIsGood, prevLabel) {
     ` rispetto\u00a0a\u00a0${prevLabel}`);
 }
 
+// Quota delle entrate che resta: il numero da far crescere per spendere meno.
+function savingText(m) {
+  if (m.risparmio == null) return "entrate − uscite";
+  const r = Math.round(m.risparmio);
+  return r >= 0 ? `hai messo da parte il ${r}% delle entrate` : `uscite oltre le entrate del ${-r}%`;
+}
+
 function renderTiles(m, prev) {
   const pl = prev ? prev.short.toLowerCase().replace(/ /g, "\u00a0") : "";
   const tiles = [
     { label: "Entrate", v: m.entrate, p: prev?.entrate, up: true, sub: `di cui da persone ${fmt(m.da_persone)}` },
     { label: "Uscite", v: m.uscite, p: prev?.uscite, up: false, sub: `di cui a persone ${fmt(m.a_persone)}` },
-    { label: m.year ? "Saldo dell'anno" : "Saldo del mese", v: m.saldo, p: prev?.saldo, up: true, hero: true, sub: "entrate − uscite" },
+    { label: m.year ? "Saldo dell'anno" : "Saldo del mese", v: m.saldo, p: prev?.saldo, up: true, hero: true, sub: savingText(m) },
     { label: "Totale speso", v: m.speso, p: prev?.speso, up: false,
       sub: m.previsione ? `previsione a fine mese ≈ ${EUR0.format(m.previsione.speso)}` : `${m.categorie.reduce((a, c) => a + c.n, 0)} movimenti` },
   ];
@@ -372,7 +382,7 @@ function renderBudget(m) {
   const list = $("budget-list");
   if (m.year) return list.replaceChildren(h("p", { class: "empty", text: "I budget sono mensili: apri un mese per vederli." }));
   if (!m.budget.length) {
-    return list.replaceChildren(h("p", { class: "empty", text: "Nessun budget impostato. Apri config/budget.toml su GitHub e togli il # davanti alle categorie." }));
+    return list.replaceChildren(h("p", { class: "empty", text: "Nessun budget impostato: tocca Modifica (ci sono anche quelli suggeriti)." }));
   }
   const all = m.budget.map((b) => ({ ...b, r: b.speso / b.budget })).sort((a, b) => b.r - a.r);
   const rows = all.filter((b) => b.speso > 0);
@@ -402,6 +412,97 @@ function renderInternal(m) {
     h("div", { class: "internal-row" }, h("span", { class: "muted", text: "Variazione complessiva dei conti" }), h("span"), h("span"),
       h("span", { text: fmt(m.variazione) })));
 }
+
+// ── costi di banca e cambio ─────────────────────────────────────────────
+function renderCosts(m) {
+  const c = m.costi;
+  $("costs-card").hidden = !c;
+  if (!c) return;
+  const year = state.years?.find((y) => y.key === m.key.slice(0, 4));
+  const row = (label, v, hint) => h("div", { class: "internal-row cost-row" }, h("span", {}, label, hint ? h("small", { class: "muted", text: ` · ${hint}` }) : null),
+    h("span", { text: fmt(v) }));
+  $("costs-body").replaceChildren(
+    h("div", { class: "wallet-balance" }, h("span", { class: "muted small", text: m.year ? "Nell'anno" : "Nel mese" }), h("strong", { text: fmt(c.totale) })),
+    row("Cambi valuta", c.cambi, c.cambi < 0 ? "a tuo favore rispetto al tasso BCE" : "rispetto al tasso BCE"),
+    row("Commissioni", c.commissioni, "es. imposta di bollo"),
+    !m.year && year ? row("Da inizio anno", year.costi.totale) : null,
+    h("p", { class: "hint", text: "I cambi fatti pagando con la carta in un'altra valuta non si vedono: sono già dentro l'importo della spesa." }));
+}
+
+// ── consigli per spendere meno ──────────────────────────────────────────
+function renderTips() {
+  const list = state.data.consigli || [];
+  $("tips-card").hidden = !list.length;
+  if (!list.length) return;
+  const total = list.reduce((a, t) => a + (t.risparmio || 0), 0);
+  $("tips-sub").textContent = "Calcolati sulle tue spese degli ultimi mesi · stime prudenti"
+    + (total ? ` · fino a circa ${EUR0.format(total)} al mese, se li segui tutti` : "");
+  $("tips-body").replaceChildren(...list.map((t) => h("div", { class: "tip-row" },
+    h("div", { class: "tip-main" },
+      h("strong", { text: t.titolo }),
+      t.risparmio ? h("span", { class: "tip-save", text: `≈ ${EUR0.format(t.risparmio)} al mese` }) : null,
+      h("p", { class: "tip-text", text: t.testo })),
+    h("button", { class: "btn ghost small-btn", type: "button", text: "Nascondi", title: "Non mostrarlo più questo mese",
+      onclick: async (e) => {
+        e.target.disabled = true;
+        const { ok, payload } = await api("/api/avvisi", { azione: "ok", id: t.id });
+        if (!ok) { e.target.disabled = false; return toast(payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Non riuscito."); }
+        setData(payload.dati, current().key);
+        render();
+      } }))));
+}
+
+// ── budget: modifica dall'app, con i suggeriti ──────────────────────────
+const budgetNum = (v) => (v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ","));
+function openBudget() {
+  const rows = state.data.budget_suggeriti || [];
+  $("budget-error").hidden = true;
+  $("budget-all").hidden = !rows.some((r) => r.suggerito != null && (r.attuale == null || r.suggerito < r.attuale));
+  $("budget-rows").replaceChildren(...rows.map((r) => {
+    const input = h("input", { type: "text", inputmode: "decimal", value: budgetNum(r.attuale), placeholder: "nessuno",
+      "aria-label": `Budget ${r.nome}`, "data-cat": r.nome, "data-was": budgetNum(r.attuale) });
+    return h("div", { class: "budget-edit-row" },
+      h("div", { class: "budget-edit-name" }, h("strong", { text: r.nome }),
+        h("small", { class: "muted", text: `di solito ${EUR0.format(r.tipico)} al mese${r.fissa ? " · spesa fissa" : ""}` })),
+      r.suggerito != null ? h("button", { class: "link-btn small", type: "button", text: `usa ${EUR0.format(r.suggerito)}`,
+        // "Usa tutti" non alza mai un budget che hai già: l'obiettivo è spendere meno
+        "data-sugg": r.attuale == null || r.suggerito < r.attuale ? "bulk" : "one",
+        onclick: () => { input.value = String(r.suggerito); } }) : h("span"),
+      h("label", { class: "budget-input" }, input, h("span", { class: "muted", text: "€" })));
+  }));
+  $("budget-dialog").showModal();
+}
+$("budget-edit").addEventListener("click", openBudget);
+$("budget-cancel").addEventListener("click", () => $("budget-dialog").close());
+$("budget-all").addEventListener("click", () => {
+  for (const b of $("budget-rows").querySelectorAll('button[data-sugg="bulk"]')) b.click();
+});
+$("budget-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const changes = {};
+  for (const input of $("budget-rows").querySelectorAll("input[data-cat]")) {
+    const v = input.value.trim();
+    if (v && !/^\d{1,6}([.,]\d{1,2})?$/.test(v)) {
+      $("budget-error").textContent = `Importo non valido per ${input.dataset.cat}: scrivi un numero, per esempio 150 o 99,50.`;
+      $("budget-error").hidden = false;
+      return input.focus();
+    }
+    if (v !== input.dataset.was) changes[input.dataset.cat] = v;
+  }
+  if (!Object.keys(changes).length) return $("budget-dialog").close();
+  $("budget-save").disabled = true;
+  const { ok, payload } = await api("/api/budget", { budget: changes });
+  $("budget-save").disabled = false;
+  if (!ok) {
+    $("budget-error").textContent = payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Non riuscito.";
+    $("budget-error").hidden = false;
+    return;
+  }
+  $("budget-dialog").close();
+  setData(payload.dati, current().key);
+  render();
+  toast("Budget salvati ✓");
+});
 
 // ── portafoglio contanti ────────────────────────────────────────────────
 function renderWallet(m) {

@@ -2,7 +2,7 @@
 /* Conti sul telefono. Al posto del server del Mac, legge e scrive direttamente il repository
    privato su GitHub con un token fine-grained salvato solo su questo telefono.
    - Legge data/app.json, preparato dalle Actions con la stessa logica dei report (nessun calcolo qui).
-   - Scrive SOLO config/correzioni.json e data/contanti.json, come l'app del Mac.
+   - Scrive SOLO i file che scrive anche l'app del Mac (WRITABLE qui sotto).
    - Dopo una modifica aspetta che le Actions ricalcolino app.json e aggiorna la vista da sola.
    - Nessun dato finanziario viene salvato sul telefono: restano solo in memoria finché l'app è aperta.
    Espone window.ContiBackend.api(path, body) con le stesse risposte del server del Mac. */
@@ -10,7 +10,7 @@
   const REPO = "Frankdinapoli/Conti";
   const API = "https://api.github.com";
   const STORE = "conti-gh";
-  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json", "data/avvisi.json", "data/amex.json"]);
+  const WRITABLE = new Set(["config/correzioni.json", "data/contanti.json", "data/previsti.json", "data/viaggi.json", "data/avvisi.json", "data/amex.json", "config/budget.toml"]);
   const EXPIRY_STORE = "conti-gh-scadenza";
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const CATEGORY_RE = /^[\p{L}\p{N}_'/&.,() -]{2,40}$/u;
@@ -141,7 +141,7 @@
   }
 
   // ── scrittura ─────────────────────────────────────────────────────────
-  async function writeJson(path, mutate, message) {
+  async function writeJson(path, mutate, message, text = false) {
     if (!WRITABLE.has(path)) throw new Fail(400, { errore: "scrittura non consentita" });
     for (let attempt = 0; attempt < 2; attempt++) {
       const r = await gh(`/repos/${REPO}/contents/${path}?ref=main`);
@@ -149,7 +149,7 @@
       if (r.ok) {
         const j = await r.json();
         sha = j.sha;
-        try { current = JSON.parse(decode(j.content || "")) || {}; } catch { current = {}; }
+        if (!text) try { current = JSON.parse(decode(j.content || "")) || {}; } catch { current = {}; }
       } else if (r.status !== 404) {
         throw failFor(r, false);
       }
@@ -487,13 +487,65 @@
   // «Va bene» su un avviso (data/avvisi.json): non ricompare più.
   async function alertOk(body) {
     const id = String(body.id || "");
-    if (body.azione !== "ok" || !snapshot || !(view().avvisi || []).some((a) => a.id === id)) return reply(400, { errore: "avviso non trovato" });
+    const shown = [...(view().avvisi || []), ...(view().consigli || [])];  // anche i consigli si nascondono così
+    if (body.azione !== "ok" || !snapshot || !shown.some((a) => a.id === id)) return reply(400, { errore: "avviso non trovato" });
     const commit = await writeJson("data/avvisi.json", (cur) => {
       const ok = new Set((Array.isArray(cur.ok) ? cur.ok : []).filter((x) => typeof x === "string"));
       ok.add(id);
       return JSON.stringify({ _nota: "Scritto dall'app Conti: avvisi già controllati («Va bene»).", versione: 1, ok: [...ok].sort() }, null, 2) + "\n";
     }, "Avvisi controllati dall'app");
-    remember(commit, (d) => { d.avvisi = (d.avvisi || []).filter((a) => a.id !== id); });
+    remember(commit, (d) => {
+      d.avvisi = (d.avvisi || []).filter((a) => a.id !== id);
+      d.consigli = (d.consigli || []).filter((a) => a.id !== id);
+    });
+    return reply(200, { ok: true, dati: view() });
+  }
+
+  // Budget mensili (config/budget.toml): stesso formato che scrive l'app del Mac (app/budget.py).
+  const BUDGET_HEADER = `# Budget mensili per categoria, in EUR.
+#
+# Si modificano dall'app Conti (scheda Budget → Modifica), dal Mac o dal telefono.
+# Si può anche modificare qui su GitHub: una riga "Categoria" = importo per ogni budget,
+# con il punto per i decimali (es. 99.50). Le categorie senza riga non hanno budget.
+#
+# Nel report: ✅ sotto l'80%, ⚠️ tra 80% e 100%, 🔴 budget superato.
+
+[budget]
+`;
+  function budgetAmount(value) {
+    if (value == null || String(value).trim() === "") return null;
+    const n = Number(String(value).trim().replace(",", "."));
+    if (!Number.isFinite(n) || n < 0 || n > 100000) throw new Fail(400, { errore: "importo non valido" });
+    const r = Math.round(n * 100) / 100;
+    return r > 0 ? r : null;
+  }
+  async function budgets(body) {
+    const changes = body.budget;
+    if (!snapshot || !changes || typeof changes !== "object" || Array.isArray(changes) || Object.keys(changes).length > 100) {
+      return reply(400, { errore: "richiesta non valida" });
+    }
+    const parsed = {};
+    for (const [cat, value] of Object.entries(changes)) {
+      if (!CATEGORY_RE.test(cat)) return reply(400, { errore: "nome di categoria non valido" });
+      parsed[cat] = budgetAmount(value);
+    }
+    const current = view().budget || Object.fromEntries((view().mesi.at(-1)?.budget || []).map((b) => [b.nome, b.budget]));
+    const next = {};
+    for (const [cat, amount] of Object.entries(current)) if (!(cat in parsed) || parsed[cat] != null) next[cat] = cat in parsed ? parsed[cat] : amount;
+    for (const [cat, amount] of Object.entries(parsed)) if (amount != null) next[cat] = amount;
+    const num = (x) => (Number.isInteger(x) ? String(x) : x.toFixed(2));
+    const content = BUDGET_HEADER + Object.entries(next).map(([c, a]) => `${JSON.stringify(c)} = ${num(a)}`).join("\n") + "\n";
+    const commit = await writeJson("config/budget.toml", () => content, "Budget aggiornati dall'app", true);
+    remember(commit, (d) => {
+      d.budget = { ...next };
+      d.budget_attivi = Object.keys(next).length;
+      for (const m of d.mesi) {
+        const old = Object.fromEntries((m.budget || []).map((b) => [b.nome, b]));
+        m.budget = Object.entries(next).map(([nome, b]) => ({ nome, budget: b,
+          speso: m.categorie.find((c) => c.nome === nome)?.speso || 0, previsto: old[nome]?.previsto }));
+      }
+      for (const s of d.budget_suggeriti || []) s.attuale = next[s.nome] ?? null;
+    });
     return reply(200, { ok: true, dati: view() });
   }
 
@@ -589,6 +641,7 @@
       if (route === "/api/previsti") return await planned(body || {});
       if (route === "/api/viaggi") return await trips(body || {});
       if (route === "/api/avvisi") return await alertOk(body || {});
+      if (route === "/api/budget") return await budgets(body || {});
       if (route === "/api/amex") return await amexEntry(body || {});
       if (route === "/api/scadenza") return setExpiry((body || {}).scadenza);
       return reply(404, { errore: "non disponibile sul telefono" });
