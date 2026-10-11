@@ -216,15 +216,15 @@ function render() {
 function delta(cur, before, upIsGood, prevLabel) {
   if (before == null) return h("div", { class: "delta", text: "—" });
   const d = cur - before;
-  if (Math.abs(d) < 0.005) return h("div", { class: "delta", text: `= rispetto a ${prevLabel}` });
+  if (Math.abs(d) < 0.005) return h("div", { class: "delta", text: `= rispetto\u00a0a\u00a0${prevLabel}` });
   const good = upIsGood ? d > 0 : d < 0;
   return h("div", { class: "delta" },
     h("span", { class: good ? "good" : "bad", text: `${d > 0 ? "▲ +" : "▼ "}${EUR0.format(d)}` }),
-    ` rispetto a ${prevLabel}`);
+    ` rispetto\u00a0a\u00a0${prevLabel}`);
 }
 
 function renderTiles(m, prev) {
-  const pl = prev ? prev.short.toLowerCase() : "";
+  const pl = prev ? prev.short.toLowerCase().replace(/ /g, "\u00a0") : "";
   const tiles = [
     { label: "Entrate", v: m.entrate, p: prev?.entrate, up: true, sub: `di cui da persone ${fmt(m.da_persone)}` },
     { label: "Uscite", v: m.uscite, p: prev?.uscite, up: false, sub: `di cui a persone ${fmt(m.a_persone)}` },
@@ -382,10 +382,10 @@ function renderBudget(m) {
     ` ${unused.length} budget ancora a 0 €: ${unused.map((b) => b.nome).join(", ")}`) : null;
   list.replaceChildren(...rows.map((b) => {
     const st = b.r > 1 ? ["critical", "✕", "Superato"] : b.r >= 0.8 ? ["warning", "!", "Quasi al limite"]
-      : b.previsto > b.budget ? ["warning", "!", `A rischio: a fine mese ≈ ${EUR0.format(b.previsto)}`] : ["good", "✓", "Nei limiti"];
+      : b.previsto > b.budget ? ["warning", "!", `A rischio: a fine mese\u00a0≈\u00a0${EUR0.format(b.previsto)}`] : ["good", "✓", "Nei limiti"];
     return h("div", { class: "budget-row" },
       h("span", { class: "bname" }, h("span", { class: `status-icon st-${st[0]}`, "aria-hidden": "true", text: st[1] }),
-        h("span", { text: b.nome }), h("span", { class: "muted small", text: `· ${st[2]}` })),
+        h("span", { text: b.nome }), h("span", { class: "muted small bstate", text: st[2] })),
       h("span", { class: "bval", text: `${EUR0.format(b.speso)} / ${EUR0.format(b.budget)} · ${Math.round(b.r * 100)}%` }),
       h("div", { class: "btrack" }, h("div", { class: "bfill", style: `width:${Math.min(100, b.r * 100)}%;background:var(--${st[0]})` })));
   }), extra ?? "");
@@ -481,7 +481,12 @@ function renderTransactions() {
     (state.allMonths ? " · tutti i mesi" : ` · ${current().label.toLowerCase()}`);
   const body = $("tx-body");
   if (!rows.length) return body.replaceChildren(h("tr", {}, h("td", { colspan: 5, class: "empty", text: "Nessun movimento con questi filtri." })));
-  body.replaceChildren(...rows.map((t) => h("tr", {},
+  // Sul telefono si tocca tutta la riga (l'etichetta della categoria da sola è un bersaglio piccolo).
+  const openRow = (t) => (e) => {
+    if (!touchOnly.matches || e.target.closest("button") || t.contanti === "portafoglio" || t.virtuale) return;
+    if (t.contanti) openCash(t.id); else openEdit(t);
+  };
+  body.replaceChildren(...rows.map((t) => h("tr", { onclick: openRow(t) },
     h("td", { class: "date", text: fmtDate(t.data) }),
     h("td", {}, t.descrizione, amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
       onclick: () => openAmex(t.id) }) : null),
@@ -569,6 +574,14 @@ const hideTip = () => { tt.hidden = true; tipOwner = null; clearTimeout(tipTimer
 const touchOnly = matchMedia("(hover: none)");
 document.addEventListener("pointerdown", (e) => { if (!tipOwner || !tipOwner.contains(e.target)) hideTip(); }, true);
 addEventListener("scroll", hideTip, { passive: true, capture: true });
+// Sul telefono una finestra che si apre non deve far comparire subito la tastiera (copre metà
+// schermo): il campo lo tocchi tu. Su Mac il cursore va direttamente nel campo giusto.
+function focusField(el, selectAll) {
+  if (touchOnly.matches) return;
+  el.focus();
+  if (selectAll) el.select();
+}
+if (touchOnly.matches) for (const d of document.querySelectorAll("dialog")) { d.tabIndex = -1; d.autofocus = true; }
 function tip(el, content) {
   el.addEventListener("mousemove", (e) => {
     tipOwner = el;
@@ -665,7 +678,7 @@ function openEdit(t) {
     ...trips.map((v) => h("option", { value: v.id, text: `${v.nome} (${fmtDate(v.dal)})` })));
   $("edit-trip").value = trips.find((v) => v.movimenti.includes(t.id))?.id || "";
   $("edit-dialog").showModal();
-  $("edit-cat").select();
+  focusField($("edit-cat"), true);
 }
 async function saveEdit(scope) {
   const btn = $("edit-save");
@@ -707,7 +720,7 @@ $("edit-advance").addEventListener("click", () => {
   $("cash-desc").value = `Rimborso da …: ${t.descrizione}`.slice(0, 80);
   $("cash-date").value = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
   $("cash-hint").textContent = "Scrivi al posto dei puntini chi ti deve i soldi e quanto. Lo trovi tra i Previsti: quando arriva il rimborso, l'app lo abbina.";
-  $("cash-amount").focus();
+  focusField($("cash-amount"));
 });
 // Viaggio del movimento: aggiungilo (es. il volo prenotato prima) o toglilo
 $("edit-trip").addEventListener("change", async (e) => {
@@ -940,7 +953,7 @@ function openPlan(id) {
   $("cash-delete").hidden = !e;
   $("cash-error").hidden = true;
   $("cash-dialog").showModal();
-  (e ? $("cash-desc") : $("cash-amount")).focus();
+  focusField(e ? $("cash-desc") : $("cash-amount"));
 }
 function openInitial(id) {
   const e = id ? (state.data.contanti_iniziali || []).find((x) => x.id === id) : null;
@@ -953,7 +966,7 @@ function openInitial(id) {
   $("cash-delete").hidden = !e;
   $("cash-error").hidden = true;
   $("cash-dialog").showModal();
-  $("cash-amount").focus();
+  focusField($("cash-amount"));
 }
 function openCash(id) {
   const e = id ? state.data.contanti[id] : null;
@@ -973,7 +986,7 @@ function openCash(id) {
   $("cash-delete").hidden = !e;
   $("cash-error").hidden = true;
   $("cash-dialog").showModal();
-  (e ? $("cash-desc") : $("cash-amount")).focus();
+  focusField(e ? $("cash-desc") : $("cash-amount"));
 }
 async function saveCash(action, planId) {
   const f = $("cash-form").elements;
@@ -1073,6 +1086,7 @@ function renderWorth() {
 
   const box = $("worth-chart");
   const pts = w.storico;
+  box.classList.toggle("waiting", pts.length < 2);
   if (pts.length < 2) {
     return box.replaceChildren(h("p", { class: "empty small", text: "L'andamento si riempie giorno dopo giorno, a ogni sync." }));
   }
@@ -1116,7 +1130,7 @@ function amexLines(voci, extra) {
   return h("div", { class: "trip-tx" }, ...voci.map((v) => h("div", { class: `internal-row trip-line${v.fonte !== "estratto" ? " link" : ""}`,
     onclick: v.fonte === "manuale" ? () => openAmexEntry("amex", v.id) : v.fonte === "abbonamento" ? () => openAmexEntry("amexsub", v.id.split(":")[0]) : null },
     h("span", {}, h("span", { class: "muted", text: `${fmtDate(v.data)} · ` }), v.descrizione,
-      h("small", { class: "muted", text: ` · ${v.categoria}${v.fonte === "abbonamento" ? " · abbonamento" : v.fonte === "manuale" ? " · inserita da te" : ""}` })),
+      h("small", { class: "muted", text: ` · ${v.categoria}${v.importo < 0 ? " · rimborso" : ""}${v.fonte === "abbonamento" ? " · abbonamento" : v.fonte === "manuale" ? " · inserita da te" : ""}` })),
     h("span", { class: v.importo < 0 ? "pos-amt" : null, text: fmt(v.importo) }), h("span"))), extra || null);
 }
 function openAmex(txId, upcoming) {
@@ -1148,7 +1162,7 @@ function openAmexEntry(mode, id) {
   $("cash-delete").hidden = !e;
   $("cash-error").hidden = true;
   $("cash-dialog").showModal();
-  (e ? $("cash-desc") : $("cash-amount")).focus();
+  focusField(e ? $("cash-desc") : $("cash-amount"));
 }
 function renderAmex() {
   const a = state.data.amex;

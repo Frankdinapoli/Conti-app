@@ -114,6 +114,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 24px 28px 48px; }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .card-head.wrap { flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; margin-top: 20px; }
+.grid > *, .tiles > * { min-width: 0; }  /* i grafici si adattano allo schermo, non il contrario */
 @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
 .subhead { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 18px 0 6px; }
 .notice {
@@ -162,6 +163,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 24px 28px 48px; }
 .budgets { display: flex; flex-direction: column; gap: 12px; }
 .budget-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 14px; }
 .budget-row .bname { display: flex; align-items: center; gap: 8px; }
+.budget-row .bstate::before { content: "· "; }
 .budget-row .bval { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; }
 .budget-row .btrack { grid-column: 1 / -1; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .budget-row .bfill { height: 100%; border-radius: 999px; transition: width .4s ease; }
@@ -249,6 +251,7 @@ dialog {
   border: 1px solid var(--ring); border-radius: var(--radius); padding: 24px; width: min(480px, 92vw);
   background: var(--surface); color: var(--ink); box-shadow: 0 24px 64px rgba(0, 0, 0, .25);
 }
+dialog:focus, dialog:focus-visible { outline: none; }
 dialog::backdrop { background: rgba(10, 10, 10, .35); backdrop-filter: blur(3px); }
 dialog h2 { font-size: 18px; }
 .edit-desc { margin: 6px 0 16px; color: var(--ink-2); font-size: 14px; }
@@ -356,7 +359,6 @@ dialog h2 { font-size: 18px; }
   .badge { display: none; }
   #wallet-body .internal-row { grid-template-columns: 1fr auto; }
   #wallet-body .internal-row span:empty { display: none; }
-  .budget-row .bname .small { display: none; }
 
   /* filtri: a tutta larghezza, campi da 16px (iOS non fa lo zoom quando li tocchi) */
   .filters { width: 100%; }
@@ -457,6 +459,7 @@ dialog h2 { font-size: 18px; }
 .worth-part.old { border-style: dashed; }
 .worth-main p { margin: 2px 0 0; }
 .worth-chart { height: 150px; }
+.worth-chart.waiting { height: auto; }
 @media (max-width: 640px) {
   .card.worth { grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; }
   .worth-total { font-size: 28px; }
@@ -465,7 +468,7 @@ dialog h2 { font-size: 18px; }
 
 /* contante di partenza */
 .head-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.internal-row.link { cursor: pointer; border-radius: 8px; }
+.internal-row.link { cursor: pointer; }
 .internal-row.link:hover { background: var(--surface-2); }
 #wallet-body .internal-row.link span:last-child::after { content: " ✎"; color: var(--muted); font-size: 11px; }
 
@@ -529,3 +532,51 @@ details.split .field { margin-top: 8px; }
 #amex-dialog { width: min(620px, 94vw); }
 .amex-dialog .trip-tx { max-height: 60vh; }
 .subhead .link-btn { font-size: 13px; font-weight: 500; margin-left: 6px; }
+
+/* ── telefono e Safari: ritocchi finali (in fondo, così valgono su tutte le regole sopra) ── */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+@media (max-width: 640px) {
+  /* tutte le finestre: foglio a tutta larghezza che sale dal basso (anche Amex e viaggio) */
+  dialog, #cash-dialog, #trip-dialog, #amex-dialog { width: 100vw; max-width: 100vw; margin: auto 0 0; }
+  dialog { max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain; }
+  .amex-dialog .trip-tx, .trip-tx { max-height: none; overflow: visible; }
+  /* pulsanti in fondo: Annulla e Salva affiancati e larghi, Elimina/Ripristina sotto */
+  .dialog-actions .spacer { display: none; }
+  .dialog-actions .btn { flex: 1 1 0; }
+  .dialog-actions .btn.ghost { order: 3; flex-basis: 100%; }
+
+  /* intestazioni delle schede: i pulsanti vanno a capo invece di schiacciare il titolo */
+  .card-head { flex-wrap: wrap; gap: 8px 12px; }
+  .card-head .head-actions { justify-content: flex-start; }
+  .legend { flex-direction: row; gap: 12px; }
+
+  /* categorie: nome intero e importo sulla prima riga, barra sotto */
+  .hbar { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .hbar .name { grid-row: 1; }
+  .hbar .val { grid-row: 1; grid-column: 2; }
+  .hbar .val small { display: inline; margin-left: 6px; }
+  .hbar .track { grid-row: 2; grid-column: 1 / -1; height: 8px; }
+
+  /* budget: lo stato ("A rischio…", "Superato") si legge anche sul telefono, sotto il nome */
+  .budget-row .bname { flex-wrap: wrap; row-gap: 0; }
+  .budget-row .bname .bstate { flex-basis: 100%; padding-left: 26px; }
+  .budget-row .bname .bstate::before { content: none; }
+
+  /* righe cliccabili allineate al bordo del contenuto come le altre */
+  .plan-main { width: calc(100% + 8px); margin: 0 -4px; }
+  .rec-row span:nth-child(2) { text-align: left; }
+  .filters select { flex: 1.4 1 0; }
+  table.tx tr { cursor: pointer; }
+  table.tx tr { grid-template-columns: auto minmax(0, 1fr) minmax(0, max-content); }
+  table.tx td:nth-child(3) { min-width: 0; max-width: 100%; }
+  table.tx .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+}
+@media (max-width: 380px) {
+  .plan-sum { gap: 6px; }
+  .plan-sum div { min-width: 0; padding: 6px 8px; }
+  .plan-sum strong { font-size: 13px; overflow-wrap: anywhere; }
+  .month-nav select { font-size: 14px; padding: 7px 4px; }
+  .month-nav .segmented button { padding: 5px 7px; }
+  .top-actions .btn { padding: 6px 8px; font-size: 14px; }
+}
