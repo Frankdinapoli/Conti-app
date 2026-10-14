@@ -563,12 +563,43 @@ details.split .field { margin-top: 8px; }
 .plan-match-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .more-btn { display: block; width: 100%; margin-top: 12px; }
 
+/* obiettivo di risparmio del mese */
+.card.goal { margin-top: 16px; }
+.st-neutral { background: var(--muted); }
+.st-accent { background: var(--accent); }
+.goal-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.goal-head .small { flex-basis: 100%; }
+.goal-value { font-size: 28px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.goal-track { height: 10px; margin-top: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.goal-fill { height: 100%; border-radius: 999px; transition: width .4s ease; }
+.goal-status { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.goal-status .status-icon { margin-top: 2px; }
+.goal-status strong { color: var(--ink); font-weight: 600; }
+.goal-months { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.goal-months + p { margin: 12px 0 0; }
+.goal-month { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--ring);
+  border-radius: 999px; font-size: 13px; }
+
+/* quadratura dei conti: una riga per banca e valuta, i dettagli si aprono toccando */
+.recon { border-bottom: 1px solid var(--grid); }
+.recon:last-child { border-bottom: 0; }
+.recon-summary { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; list-style: none; }
+details.recon > .recon-summary { cursor: pointer; }
+.recon-summary::-webkit-details-marker { display: none; }
+details.recon > .recon-summary::after { content: "›"; color: var(--muted); font-size: 18px; line-height: 1; transition: transform .15s; }
+details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
+.recon-summary .status-icon { margin-top: 2px; }
+.recon-name { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 14px; }
+.recon-name .small { line-height: 1.45; }
+.recon-diff { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--critical-text); white-space: nowrap; }
+.recon-detail { padding: 0 0 10px 28px; }
+
 /* ── telefono e Safari: ritocchi finali (in fondo, così valgono su tutte le regole sopra) ── */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 @media (max-width: 640px) {
   /* tutte le finestre: foglio a tutta larghezza che sale dal basso (anche Amex e viaggio) */
-  dialog, #cash-dialog, #trip-dialog, #amex-dialog, #budget-dialog { width: 100vw; max-width: 100vw; margin: auto 0 0; }
+  dialog, #cash-dialog, #trip-dialog, #amex-dialog, #budget-dialog, #goal-dialog { width: 100vw; max-width: 100vw; margin: auto 0 0; }
   dialog { max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain; }
   .amex-dialog .trip-tx, .trip-tx { max-height: none; overflow: visible; }
   /* pulsanti in fondo: Annulla e Salva affiancati e larghi, Elimina/Ripristina sotto */
@@ -579,6 +610,9 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
   /* intestazioni delle schede: i pulsanti vanno a capo invece di schiacciare il titolo */
   .card-head { flex-wrap: wrap; gap: 8px 12px; }
   .card-head .head-actions { justify-content: flex-start; }
+  /* un solo pulsante: resta a destra del titolo, il testo va a capo da solo */
+  .card-head:has(> .btn) > div { flex: 1 1 0; min-width: 0; }
+  .card-head:has(> .btn) > .btn { flex: none; }
   .legend { flex-direction: row; gap: 12px; }
 
   /* categorie: nome intero e importo sulla prima riga, barra sotto */
@@ -590,6 +624,7 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
 
   /* budget: lo stato ("A rischio…", "Superato") si legge anche sul telefono, sotto il nome */
   .budget-row .bname { flex-wrap: wrap; row-gap: 0; }
+  .budget-row .bname > span:nth-child(2) { flex: 1 1 0; min-width: 0; }
   .budget-row .bname .bstate { flex-basis: 100%; padding-left: 26px; }
   .budget-row .bname .bstate::before { content: none; }
 
@@ -599,6 +634,14 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
   .filters select { flex: 1.4 1 0; }
   table.tx tr { cursor: pointer; }
   .card.tips { margin-top: 12px; }
+  .card.goal { margin-top: 12px; }
+  .goal-value { font-size: 24px; }
+  .recon-detail { padding-left: 0; }
+  /* riga che non torna: la differenza va sotto il testo, così il testo usa tutta la larghezza */
+  .recon-summary { flex-wrap: wrap; }
+  .recon-name { order: 1; flex-basis: calc(100% - 52px); }
+  details.recon > .recon-summary::after { order: 2; }
+  .recon-diff { order: 3; flex-basis: 100%; padding-left: 28px; }
   .tip-row { gap: 8px; }
   .budget-edit-row { grid-template-columns: minmax(0, 1fr) 104px; gap: 4px 10px; }
   .budget-edit-row > .link-btn, .budget-edit-row > span:empty { grid-row: 2; grid-column: 1; justify-self: start; }

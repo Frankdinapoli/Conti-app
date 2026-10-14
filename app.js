@@ -204,10 +204,12 @@ function render() {
   renderTiles(m, prev);
   renderTrend();
   renderCategories(m, prev);
+  renderGoal(m);
   renderBudget(m);
   renderTips();
   renderInternal(m);
   renderCosts(m);
+  renderRecon(m);
   renderWallet(m);
   renderRecurring();
   renderAmex();
@@ -431,6 +433,165 @@ function renderCosts(m) {
     row("Commissioni", c.commissioni, "es. imposta di bollo"),
     !m.year && year ? row("Da inizio anno", year.costi.totale) : null,
     h("p", { class: "hint", text: "I cambi fatti pagando con la carta in un'altra valuta non si vedono: sono già dentro l'importo della spesa." }));
+}
+
+// ── obiettivo di risparmio del mese ─────────────────────────────────────
+const GOAL_STATES = {  // [colore, icona, titolo]
+  in_linea: ["good", "✓", "In linea"], raggiunto: ["good", "✓", "Raggiunto"],
+  a_rischio: ["warning", "!", "A rischio"], mancato: ["critical", "✕", "Mancato"],
+  difficile: ["critical", "✕", "Difficile"], parziale: ["neutral", "–", "Mese parziale"],
+};
+function goalBar(saved, goal, color) {
+  const pct = goal > 0 ? Math.max(0, Math.min(100, (saved / goal) * 100)) : 0;
+  return h("div", { class: "goal-track", role: "img", "aria-label": `${Math.round(pct)}% dell'obiettivo` },
+    h("div", { class: `goal-fill st-${color}`, style: `width:${pct}%` }));
+}
+function goalStatus(color, icon, title, text) {
+  return h("p", { class: "goal-status" }, h("span", { class: `status-icon st-${color}`, "aria-hidden": "true", text: icon }),
+    h("span", {}, h("strong", { text: `${title}. ` }), text));
+}
+function renderGoal(m) {
+  const info = state.data.obiettivo;
+  const card = $("goal-card");
+  card.hidden = !info;
+  if (!info) return;
+  $("goal-edit").textContent = info.importo ? "Modifica" : "Imposta";
+  const body = $("goal-body");
+  if (!info.importo) {
+    $("goal-sub").textContent = "Quanto metti da parte ogni mese: entrate meno uscite";
+    return body.replaceChildren(h("p", { class: "empty" }, "Scegli quanto vuoi mettere da parte ogni mese: l'app ti dice se ci stai arrivando e quanto puoi ancora spendere.",
+      info.suggerito ? ` Per iniziare: ${EUR0.format(info.suggerito)} (il 10% delle tue entrate tipiche).` : ""));
+  }
+  if (m.year) {  // anno: somma dei mesi confrontabili
+    // solo i mesi chiusi: quello in corso non è ancora raggiunto né mancato
+    const months = m.months.filter((x) => x.obiettivo && !x.in_progress && x.obiettivo.stato !== "parziale");
+    const goal = months.reduce((a, x) => a + x.obiettivo.importo, 0), saved = months.reduce((a, x) => a + x.saldo, 0);
+    const hit = months.filter((x) => x.saldo >= x.obiettivo.importo).length;
+    $("goal-sub").textContent = `${m.label} · ${EUR0.format(info.importo)} al mese`;
+    const chips = h("div", { class: "goal-months" }, ...m.months.filter((x) => x.obiettivo).map((x) => {
+      const [color, icon] = x.in_progress ? ["neutral", "…"] : GOAL_STATES[x.obiettivo.stato] || GOAL_STATES.parziale;
+      return h("span", { class: "goal-month", title: `${x.label}: ${fmt(x.saldo)}${x.in_progress ? " (in corso)" : ""}` },
+        h("span", { class: `status-icon st-${color}`, "aria-hidden": "true", text: icon }), x.short);
+    }));
+    if (!months.length) {
+      return body.replaceChildren(chips, h("p", { class: "muted small", text: "Nessun mese chiuso da confrontare ancora: il primo bilancio arriva a fine mese." }));
+    }
+    return body.replaceChildren(
+      h("div", { class: "goal-head" }, h("span", { class: "muted small", text: "Messo da parte nei mesi chiusi" }),
+        h("strong", { class: "goal-value", text: fmt(saved) }), h("span", { class: "muted", text: `su ${EUR0.format(goal)}${goal > 0 ? ` · ${Math.max(0, Math.round(saved / goal * 100))}%` : ""}` })),
+      goalBar(saved, goal, saved >= goal ? "good" : "accent"),
+      chips,
+      h("p", { class: "muted small", text: `Obiettivo raggiunto in ${hit} ${hit === 1 ? "mese" : "mesi"} su ${months.length}.` }));
+  }
+  const g = m.obiettivo;
+  if (!g) return body.replaceChildren();
+  const [color, icon, title] = GOAL_STATES[g.stato] || GOAL_STATES.parziale;
+  $("goal-sub").textContent = `${m.label} · ${EUR0.format(g.importo)} al mese`;
+  const texts = {
+    in_linea: `A fine mese, con le spese previste, ≈ ${EUR0.format(g.previsto)} messi da parte.`,
+    a_rischio: `A fine mese, con le spese previste, ≈ ${EUR0.format(g.previsto)}. Per arrivare a ${EUR0.format(g.importo)} puoi spendere ancora ${EUR0.format(g.spendibile)}`
+      + (g.al_giorno != null ? ` in ${g.giorni} giorni (≈ ${EUR0.format(g.al_giorno)} al giorno).` : "."),
+    difficile: `Finora hai messo da parte ${EUR0.format(g.messo_da_parte)}${g.previsto != null ? ` e con le spese previste a fine mese saresti a ≈ ${EUR0.format(g.previsto)}` : ""}: `
+      + `per arrivare a ${EUR0.format(g.importo)} servirebbero altre entrate o spese più leggere.`,
+    raggiunto: `Hai messo da parte ${fmt(g.messo_da_parte)}: ${EUR0.format(g.messo_da_parte - g.importo)} oltre l'obiettivo.`,
+    mancato: `Ne sono mancati ${EUR0.format(g.importo - g.messo_da_parte)}.`,
+    parziale: "Il tracciamento è iniziato a metà mese: non è confrontabile.",
+  };
+  body.replaceChildren(
+    h("div", { class: "goal-head" }, h("span", { class: "muted small", text: m.in_progress ? "Messo da parte finora" : "Messo da parte" }),
+      h("strong", { class: "goal-value", text: fmt(g.messo_da_parte) }), h("span", { class: "muted", text: `su ${EUR0.format(g.importo)} · ${Math.max(0, Math.round(g.messo_da_parte / g.importo * 100))}%` })),
+    goalBar(g.messo_da_parte, g.importo, g.stato === "raggiunto" ? "good" : g.stato === "mancato" ? "critical" : "accent"),
+    goalStatus(color, icon, title, texts[g.stato] || ""));
+}
+function openGoal() {
+  const info = state.data.obiettivo || {};
+  $("goal-amount").value = info.importo ? String(info.importo).replace(".", ",") : "";
+  $("goal-error").hidden = true;
+  $("goal-delete").hidden = !info.importo;
+  const hint = $("goal-hint");
+  hint.hidden = !info.suggerito;
+  if (info.suggerito) {
+    hint.replaceChildren(`Suggerito: ${EUR0.format(info.suggerito)}, il 10% delle tue entrate tipiche. `,
+      h("button", { class: "link-btn", type: "button", text: "Usa questo", onclick: () => { $("goal-amount").value = String(info.suggerito); } }));
+  }
+  $("goal-dialog").showModal();
+  focusField($("goal-amount"), true);
+}
+async function saveGoal(value) {
+  $("goal-save").disabled = true;
+  const { ok, payload } = await api("/api/budget", { obiettivo: value });
+  $("goal-save").disabled = false;
+  if (!ok) {
+    $("goal-error").textContent = payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Non riuscito.";
+    $("goal-error").hidden = false;
+    return;
+  }
+  $("goal-dialog").close();
+  setData(payload.dati, current().key);
+  render();
+  toast(value ? "Obiettivo salvato ✓" : "Obiettivo tolto.");
+}
+$("goal-edit").addEventListener("click", openGoal);
+$("goal-cancel").addEventListener("click", () => $("goal-dialog").close());
+$("goal-delete").addEventListener("click", () => saveGoal(""));
+$("goal-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const v = $("goal-amount").value.trim();
+  if (!/^\d{1,6}([.,]\d{1,2})?$/.test(v) || Number(v.replace(",", ".")) <= 0) {
+    $("goal-error").textContent = "Scrivi un importo, per esempio 300 o 250,50.";
+    $("goal-error").hidden = false;
+    return;
+  }
+  saveGoal(v);
+});
+
+// ── quadratura dei conti (saldo della banca = saldo iniziale + movimenti) ─
+const RECON_STATES = {  // [colore, icona, titolo]
+  ok: ["good", "✓", "Torna"], diff: ["critical", "✕", "Non torna"], verifica: ["warning", "!", "Da ricontrollare"],
+  attesa: ["neutral", "…", "In attesa"],
+};
+const money = (v, cur) => (cur === "EUR" ? fmt(v) : `${NUM.format(v)} ${cur}`);
+function reconLine(x) {
+  const [color, icon, title] = RECON_STATES[x.stato] || RECON_STATES.attesa;
+  const period = x.dal === x.al ? `il ${shortDate(x.dal)}` : `dal ${shortDate(x.dal)} al ${shortDate(x.al)}`;
+  const texts = {
+    ok: `I movimenti scaricati spiegano il saldo della banca, ${period}.`,
+    diff: `Differenza di ${money(Math.abs(x.differenza), x.valuta)} ${period}: probabilmente un movimento non è arrivato o è doppio.`,
+    verifica: `Differenza di ${money(Math.abs(x.differenza), x.valuta)} negli ultimi giorni: forse movimenti ancora in arrivo, si ricontrolla da sola.`,
+    attesa: "Serve un secondo saldo: il prossimo arriva con il sync di stanotte.",
+  };
+  const summary = h("summary", { class: "recon-summary" },
+    h("span", { class: `status-icon st-${color}`, "aria-hidden": "true", text: icon }),
+    h("span", { class: "recon-name" }, h("strong", { text: `${x.banca} · ${x.valuta}` }), h("span", { class: "muted small", text: `${title}. ${texts[x.stato]}` })),
+    x.stato === "diff" || x.stato === "verifica" ? h("span", { class: "recon-diff", text: money(x.differenza, x.valuta) }) : null);
+  if (x.movimenti == null) return h("div", { class: "recon" }, summary);
+  const row = (label, v, strong) => h("div", { class: "internal-row cost-row" }, h("span", { text: label }),
+    h(strong ? "strong" : "span", { text: money(v, x.valuta) }));
+  return h("details", { class: "recon" }, summary, h("div", { class: "recon-detail" },
+    row(`Saldo della banca il ${shortDate(x.dal)}`, x.iniziale),
+    row("Movimenti scaricati", x.movimenti),
+    row("Saldo atteso", x.iniziale + x.movimenti),
+    row(`Saldo della banca dopo il ${shortDate(x.al)}`, x.saldo, true)));
+}
+function renderRecon(m) {
+  const body = $("recon-body");
+  if (!state.data.quadratura_attiva) {
+    $("recon-sub").textContent = "Saldo della banca = saldo iniziale + movimenti scaricati";
+    return body.replaceChildren(h("p", { class: "empty", text: "Parte con il sync di stanotte: servono due saldi per ogni valuta, quindi i primi risultati arrivano tra due notti." }));
+  }
+  const lines = m.year ? m.months.flatMap((x) => (x.quadratura || []).map((l) => ({ ...l, mese: x.short }))) : m.quadratura || [];
+  const bad = lines.filter((l) => l.stato === "diff").length;
+  $("recon-sub").textContent = !lines.length ? "Nessun saldo per questo periodo"
+    : bad ? `${bad} ${bad === 1 ? "conto non torna" : "conti non tornano"}: tocca per i dettagli` : "Tutto torna · tocca una riga per i dettagli";
+  if (!lines.length) return body.replaceChildren(h("p", { class: "empty", text: "Per questo periodo non ci sono saldi delle banche (la quadratura è iniziata dopo)." }));
+  if (m.year) {  // anno: solo i mesi con qualcosa che non torna, il resto in una riga
+    const issues = lines.filter((l) => l.stato !== "ok");
+    return body.replaceChildren(
+      ...issues.map((l) => { const el = reconLine(l); el.querySelector(".recon-name strong").textContent += ` · ${l.mese}`; return el; }),
+      lines.length > issues.length ? goalStatus("good", "✓", issues.length ? "Il resto torna" : "Tutto torna",
+        `${lines.length - issues.length} controlli su ${lines.length}.`) : null);
+  }
+  body.replaceChildren(...lines.map(reconLine));
 }
 
 // ── consigli per spendere meno ──────────────────────────────────────────

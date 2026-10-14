@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="813bb59fabda">
+  <meta name="conti-versione" content="dcf18287b304">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=728f107e19">
+  <link rel="stylesheet" href="app.css?v=80f004417a">
 </head>
 <body>
   <header class="topbar">
@@ -111,6 +111,17 @@
 
       <section class="tiles" id="tiles"></section>
 
+      <section class="card goal" id="goal-card" hidden>
+        <header class="card-head">
+          <div>
+            <h2>Obiettivo di risparmio</h2>
+            <p class="muted small" id="goal-sub">Quanto metti da parte ogni mese: entrate meno uscite</p>
+          </div>
+          <button class="btn" id="goal-edit" type="button">Modifica</button>
+        </header>
+        <div id="goal-body"></div>
+      </section>
+
       <section class="card tips" id="tips-card" hidden>
         <header class="card-head">
           <div>
@@ -174,6 +185,16 @@
             </div>
           </header>
           <div id="costs-body"></div>
+        </article>
+
+        <article class="card" id="recon-card">
+          <header class="card-head">
+            <div>
+              <h2>Quadratura dei conti</h2>
+              <p class="muted small" id="recon-sub">Saldo della banca = saldo iniziale + movimenti scaricati</p>
+            </div>
+          </header>
+          <div id="recon-body"></div>
         </article>
 
         <article class="card" id="wallet-card" hidden>
@@ -349,6 +370,25 @@
     </form>
   </dialog>
 
+  <dialog id="goal-dialog" aria-labelledby="goal-title">
+    <form method="dialog" id="goal-form" autocomplete="off">
+      <h2 id="goal-title">Obiettivo di risparmio</h2>
+      <p class="edit-desc">Quanto vuoi mettere da parte ogni mese (entrate meno uscite). È solo un traguardo da
+        tenere d'occhio: non cambia nessun numero dell'app né dei report.</p>
+      <label class="field"><span>Ogni mese voglio mettere da parte</span>
+        <span class="budget-input"><input id="goal-amount" type="text" inputmode="decimal" placeholder="es. 300"><span class="muted">€</span></span>
+      </label>
+      <p class="hint" id="goal-hint" hidden></p>
+      <div class="error" id="goal-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost danger" id="goal-delete" hidden>Togli l'obiettivo</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="goal-cancel">Annulla</button>
+        <button type="submit" class="btn primary" id="goal-save">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="amex-dialog" aria-labelledby="amex-title">
     <div class="amex-dialog">
       <h2 id="amex-title">Addebito American Express</h2>
@@ -382,7 +422,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=595c898b7b"></script>
-  <script src="app.js?v=0ff85d36de"></script>
+  <script src="telefono.js?v=1f945e3bf7"></script>
+  <script src="app.js?v=e1e7b6690e"></script>
 </body>
 </html>

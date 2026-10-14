@@ -145,11 +145,12 @@
     if (!WRITABLE.has(path)) throw new Fail(400, { errore: "scrittura non consentita" });
     for (let attempt = 0; attempt < 2; attempt++) {
       const r = await gh(`/repos/${REPO}/contents/${path}?ref=main`);
-      let sha, current = {};
+      let sha, current = text ? "" : {};
       if (r.ok) {
         const j = await r.json();
         sha = j.sha;
-        if (!text) try { current = JSON.parse(decode(j.content || "")) || {}; } catch { current = {}; }
+        if (text) current = decode(j.content || "");
+        else try { current = JSON.parse(decode(j.content || "")) || {}; } catch { current = {}; }
       } else if (r.status !== 404) {
         throw failFor(r, false);
       }
@@ -525,10 +526,21 @@
 # Si può anche modificare qui su GitHub: una riga "Categoria" = importo per ogni budget,
 # con il punto per i decimali (es. 99.50). Le categorie senza riga non hanno budget.
 #
+# In fondo, [obiettivo] risparmio = quanto vuoi mettere da parte ogni mese (scheda Obiettivo).
 # Nel report: ✅ sotto l'80%, ⚠️ tra 80% e 100%, 🔴 budget superato.
 
 [budget]
 `;
+  // Obiettivo di risparmio del mese: stesso calcolo di app/data.py::_goal (finché GitHub non ricalcola).
+  function goalFor(m, goal) {
+    const out = { importo: goal, messo_da_parte: m.saldo };
+    if (m.partial) return { ...out, stato: "parziale" };
+    if (!m.in_progress) return { ...out, stato: m.saldo >= goal ? "raggiunto" : "mancato" };
+    const extra = (m.previsione?.speso ?? m.speso) - m.speso;
+    const expected = m.saldo - extra, left = m.saldo - goal, days = Math.max(m.previsione?.giorni_rimasti || 0, 0);
+    return { ...out, stato: expected >= goal ? "in_linea" : left > 0 ? "a_rischio" : "difficile", previsto: expected,
+      spendibile: Math.max(left, 0), al_giorno: left > 0 && days ? left / days : null, giorni: days };
+  }
   function budgetAmount(value) {
     if (value == null || String(value).trim() === "") return null;
     const n = Number(String(value).trim().replace(",", "."));
@@ -536,8 +548,31 @@
     const r = Math.round(n * 100) / 100;
     return r > 0 ? r : null;
   }
+  // Legge il formato fisso scritto da budget.dump: righe `"Categoria" = numero` in [budget],
+  // `risparmio = numero` in [obiettivo]. null se il testo non si legge.
+  function parseBudgetText(text) {
+    if (typeof text !== "string" || !/^\[budget\]\s*$/m.test(text)) return null;
+    const budget = {};
+    let section = "", obiettivo = null;
+    for (const line of text.split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t || t.startsWith("#")) continue;
+      const h = /^\[(\w+)\]$/.exec(t);
+      if (h) { section = h[1]; continue; }
+      if (section === "budget") {
+        const m = /^("(?:[^"\\]|\\.)*")\s*=\s*(\d+(?:\.\d+)?)$/.exec(t);
+        if (!m) return null;
+        try { budget[JSON.parse(m[1])] = Number(m[2]); } catch { return null; }
+      } else if (section === "obiettivo") {
+        const m = /^risparmio\s*=\s*(\d+(?:\.\d+)?)$/.exec(t);
+        if (!m) return null;
+        obiettivo = Number(m[1]);
+      }
+    }
+    return { budget, obiettivo };
+  }
   async function budgets(body) {
-    const changes = body.budget;
+    const changes = body.budget ?? {};
     if (!snapshot || !changes || typeof changes !== "object" || Array.isArray(changes) || Object.keys(changes).length > 100) {
       return reply(400, { errore: "richiesta non valida" });
     }
@@ -546,13 +581,22 @@
       if (!CATEGORY_RE.test(cat)) return reply(400, { errore: "nome di categoria non valido" });
       parsed[cat] = budgetAmount(value);
     }
-    const current = view().budget || Object.fromEntries((view().mesi.at(-1)?.budget || []).map((b) => [b.nome, b.budget]));
-    const next = {};
-    for (const [cat, amount] of Object.entries(current)) if (!(cat in parsed) || parsed[cat] != null) next[cat] = cat in parsed ? parsed[cat] : amount;
-    for (const [cat, amount] of Object.entries(parsed)) if (amount != null) next[cat] = amount;
     const num = (x) => (Number.isInteger(x) ? String(x) : x.toFixed(2));
-    const content = BUDGET_HEADER + Object.entries(next).map(([c, a]) => `${JSON.stringify(c)} = ${num(a)}`).join("\n") + "\n";
-    const commit = await writeJson("config/budget.toml", () => content, "Budget aggiornati dall'app", true);
+    // Si parte dal testo attuale del file su GitHub (non dai dati in memoria, che possono essere
+    // vecchi se il Mac ha appena cambiato un budget o l'obiettivo); view() solo se il testo non si legge.
+    let next = {}, goal = null;
+    const content = (text) => {
+      const old = parseBudgetText(text);
+      const current = old ? old.budget : (view().budget || Object.fromEntries((view().mesi.at(-1)?.budget || []).map((b) => [b.nome, b.budget])));
+      // obiettivo di risparmio: assente = resta com'è, vuoto = tolto
+      goal = "obiettivo" in body ? budgetAmount(body.obiettivo) : (old ? old.obiettivo : (view().obiettivo?.importo ?? null));
+      next = {};
+      for (const [cat, amount] of Object.entries(current)) if (!(cat in parsed) || parsed[cat] != null) next[cat] = cat in parsed ? parsed[cat] : amount;
+      for (const [cat, amount] of Object.entries(parsed)) if (amount != null) next[cat] = amount;
+      return BUDGET_HEADER + Object.entries(next).map(([c, a]) => `${JSON.stringify(c)} = ${num(a)}`).join("\n") + "\n"
+        + (goal != null ? `\n[obiettivo]\nrisparmio = ${num(goal)}\n` : "");
+    };
+    const commit = await writeJson("config/budget.toml", content, "Budget aggiornati dall'app", true);
     remember(commit, (d) => {
       d.budget = { ...next };
       d.budget_attivi = Object.keys(next).length;
@@ -562,6 +606,8 @@
           speso: m.categorie.find((c) => c.nome === nome)?.speso || 0, previsto: old[nome]?.previsto }));
       }
       for (const s of d.budget_suggeriti || []) s.attuale = next[s.nome] ?? null;
+      d.obiettivo = { ...(d.obiettivo || {}), importo: goal };
+      for (const m of d.mesi) m.obiettivo = goal != null ? goalFor(m, goal) : null;
     });
     return reply(200, { ok: true, dati: view() });
   }
