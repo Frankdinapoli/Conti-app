@@ -16,7 +16,9 @@ const compact = (v) => {
 // Sul telefono non c'è il server del Mac: telefono.js fornisce le stesse "API" lette da GitHub.
 const PHONE = Boolean(window.ContiBackend);
 
-const state = { data: null, idx: 0, group: "tutti", cat: "", search: "", view: "mese", allMonths: false, years: null };
+const state = { data: null, idx: 0, group: "tutti", cat: "", search: "", view: "mese", allMonths: false, years: null, showAll: false };
+// Sul telefono i movimenti sono la cosa più consultata: subito dopo il patrimonio, i più recenti.
+const PHONE_RECENT = 10;
 
 // ── periodi: mesi oppure anni (l'anno ha la stessa forma di un mese, sommato) ──
 function buildYears(mesi) {
@@ -159,6 +161,7 @@ function setView(view, key) {
   const found = key ? list.findIndex((p) => p.key === key) : -1;
   state.idx = found >= 0 ? found : list.length - 1;
   state.cat = "";
+  state.showAll = false;
   buildMonthSelect();
   render();
 }
@@ -166,6 +169,7 @@ function setMonth(i) {
   const n = periods().length;
   state.idx = Math.max(0, Math.min(n - 1, i));
   state.cat = "";
+  state.showAll = false;
   render();
 }
 
@@ -578,7 +582,12 @@ function renderTransactions() {
     (!state.cat || t.categoria === state.cat) &&
     (!q || t.descrizione.toLowerCase().includes(q) || t.categoria.toLowerCase().includes(q)));
   const total = rows.reduce((a, t) => a + (t.eur || 0), 0);
-  $("tx-sub").textContent = `${rows.length} movimenti · somma ${fmt(total)}` +
+  // Telefono, senza filtri: solo gli ultimi movimenti; "Mostra tutti" apre l'elenco del periodo.
+  const short = PHONE && !state.showAll && !q && !state.cat && state.group === "tutti" && !state.allMonths && rows.length > PHONE_RECENT;
+  $("tx-more").hidden = !short;
+  if (short) $("tx-more").textContent = `Mostra tutti i ${rows.length} movimenti ${current().year ? `del ${current().key}` : `di ${current().label.toLowerCase()}`}`;
+  const shown = short ? rows.slice(0, PHONE_RECENT) : rows;
+  $("tx-sub").textContent = `${short ? `ultimi ${PHONE_RECENT} di ` : ""}${rows.length} movimenti · somma ${fmt(total)}` +
     (state.allMonths ? " · tutti i mesi" : ` · ${current().label.toLowerCase()}`);
   const body = $("tx-body");
   if (!rows.length) return body.replaceChildren(h("tr", {}, h("td", { colspan: 5, class: "empty", text: "Nessun movimento con questi filtri." })));
@@ -587,7 +596,7 @@ function renderTransactions() {
     if (!touchOnly.matches || e.target.closest("button") || t.contanti === "portafoglio" || t.virtuale) return;
     if (t.contanti) openCash(t.id); else openEdit(t);
   };
-  body.replaceChildren(...rows.map((t) => h("tr", { onclick: openRow(t) },
+  body.replaceChildren(...shown.map((t) => h("tr", { onclick: openRow(t) },
     h("td", { class: "date", text: fmtDate(t.data) }),
     h("td", {}, t.descrizione, amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
       onclick: () => openAmex(t.id) }) : null),
@@ -695,6 +704,7 @@ function tip(el, content) {
     let x = e.clientX + 14, y = e.clientY + 14;
     if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
     if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+    x = Math.max(8, Math.min(x, innerWidth - r.width - 8)); y = Math.max(8, y);  // mai fuori dallo schermo
     tt.style.left = `${x}px`; tt.style.top = `${y}px`;
   });
   el.addEventListener("mouseleave", hideTip);
@@ -706,6 +716,8 @@ for (const b of $("view-switch").children) b.addEventListener("click", () => {
   const cur = current().key;
   setView(b.dataset.view, b.dataset.view === "anno" ? cur.slice(0, 4) : state.data.mesi.filter((m) => m.key.startsWith(cur)).at(-1)?.key);
 });
+$("tx-more").addEventListener("click", () => { state.showAll = true; renderTransactions(); });
+if (PHONE) $("worth-card").after($("tx-card"));  // telefono: movimenti subito dopo il patrimonio
 $("all-months").addEventListener("change", (e) => { state.allMonths = e.target.checked; renderFilters(); renderTransactions(); });
 $("prev-month").addEventListener("click", () => setMonth(state.idx - 1));
 $("next-month").addEventListener("click", () => setMonth(state.idx + 1));
@@ -1171,6 +1183,17 @@ function renderAlerts() {
 }
 
 // ── patrimonio: saldi dei conti + contanti (niente investimenti) ────────
+// Date sull'asse del patrimonio: da 2 a 5 etichette (in base alla larghezza), un giorno al massimo una volta.
+function worthTicks(t0, t1, width) {
+  const days = Math.round((t1 - t0) / 864e5);
+  const n = Math.max(1, Math.min(days, width < 420 ? 3 : 4));
+  const out = [];
+  for (let k = 0; k <= n; k++) {
+    const t = t0 + Math.round(((t1 - t0) * k) / n / 864e5) * 864e5;
+    if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
 function renderWorth() {
   const w = state.data.patrimonio;
   $("worth-card").hidden = !w;
@@ -1197,7 +1220,11 @@ function renderWorth() {
   let lo = Math.min(...vals), hi = Math.max(...vals);
   const span = Math.max(hi - lo, Math.abs(hi) * 0.02, 10);
   lo -= span * 0.15; hi += span * 0.15;
-  const x = (i) => pad.l + (i / (pts.length - 1)) * (W - pad.l - pad.r);
+  // asse del tempo vero: un giorno senza sync resta un buco, non viene schiacciato
+  const day = (p) => Date.parse(p.data + "T12:00");
+  const t0 = day(pts[0]), t1 = Math.max(day(pts.at(-1)), t0 + 864e5);
+  const xt = (t) => pad.l + ((t - t0) / (t1 - t0)) * (W - pad.l - pad.r);
+  const x = (i) => xt(day(pts[i]));
   const y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
   const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.totale).toFixed(1)}`).join("");
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Andamento del patrimonio" });
@@ -1209,17 +1236,19 @@ function renderWorth() {
     s("path", { d: `${line}L${x(pts.length - 1)},${H - pad.b}L${pad.l},${H - pad.b}Z`, fill: css("--series-1"), opacity: "0.12" }),
     s("path", { d: line, fill: "none", stroke: css("--series-1"), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }),
     s("circle", { cx: x(pts.length - 1), cy: y(vals.at(-1)), r: 3.5, fill: css("--series-1") }),
-    s("text", { x: pad.l, y: H - 6 }, fmtDate(pts[0].data)),
-    s("text", { x: W - pad.r, y: H - 6, "text-anchor": "end" }, fmtDate(pts.at(-1).data)));
+    ...worthTicks(t0, t1, W).map((t, i, all) => s("text", { x: xt(t), y: H - 6,
+      "text-anchor": i === 0 ? "start" : i === all.length - 1 ? "end" : "middle" },
+      new Date(t).toLocaleDateString("it-IT", { day: "numeric", month: "short" }))));  // ora locale, come t
   const hit = s("rect", { class: "hit", x: pad.l, y: 0, width: W - pad.l - pad.r, height: H });
   let hover = null;
   hit.addEventListener("mousemove", (e) => {
     const r = hit.getBoundingClientRect();
-    hover = Math.round(((e.clientX - r.left) / r.width) * (pts.length - 1));
+    const t = t0 + ((e.clientX - r.left) / r.width) * (t1 - t0);
+    hover = pts.reduce((best, p, i) => (Math.abs(day(p) - t) < Math.abs(day(pts[best]) - t) ? i : best), 0);
   });
   tip(hit, () => {
     const p = pts[Math.max(0, Math.min(pts.length - 1, hover ?? pts.length - 1))];
-    return [fmtDate(p.data), [["Patrimonio", fmt(p.totale), css("--series-1")]]];
+    return [p.oggi ? `${fmtDate(p.data)} · adesso` : fmtDate(p.data), [["Patrimonio", fmt(p.totale), css("--series-1")]]];
   });
   svg.append(hit);
   box.replaceChildren(svg);
@@ -1326,6 +1355,14 @@ function whenText(iso) {
   if (days < 0) return `in ritardo di ${-days} ${days === -1 ? "giorno" : "giorni"}`;
   return days <= 31 ? `tra ${days} giorni` : fmtDate(iso);
 }
+async function rejectMatch(button, p) {
+  button.disabled = true;
+  const { ok, payload } = await api("/api/previsti", { azione: "scarta", id: p.id, movimento: p.forse.id });
+  if (!ok) { button.disabled = false; return toast(payload.sola_lettura ? "Il token è in sola lettura: serve Contents: Read and write." : payload.errore || "Non riuscito."); }
+  setData(payload.dati, current().key);
+  render();
+  toast("Va bene: quel movimento non verrà più proposto.");
+}
 function renderPlanned() {
   const list = state.data.previsti || [];
   const box = $("plan-body");
@@ -1354,7 +1391,10 @@ function renderPlanned() {
       p.forse ? h("div", { class: "plan-match" },
         h("span", { class: "status-icon st-good", "aria-hidden": "true", text: "✓" }),
         h("span", { class: "plan-match-text", text: `Arrivato? «${p.forse.descrizione}» del ${fmtDate(p.forse.data)}, ${p.forse.valuta === "EUR" ? fmt(p.forse.importo) : `${NUM.format(p.forse.importo)} ${p.forse.valuta}`} (${p.forse.banca})` }),
-        h("button", { class: "btn small-btn", type: "button", onclick: () => saveCash("elimina", p.id), text: "Segna come fatto" })) : null)));
+        h("span", { class: "plan-match-actions" },
+          h("button", { class: "btn ghost small-btn", type: "button", text: "Non è questo", title: "Il movimento non corrisponde: non proporlo più",
+            onclick: (e) => rejectMatch(e.target, p) }),
+          h("button", { class: "btn small-btn", type: "button", onclick: () => saveCash("elimina", p.id), text: "Segna come fatto" }))) : null)));
 }
 
 let toastTimer;

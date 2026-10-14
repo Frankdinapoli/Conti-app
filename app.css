@@ -559,6 +559,10 @@ details.split .field { margin-top: 8px; }
 .budget-input input { width: 100%; min-width: 0; font: 15px system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--surface-2);
   border: 1px solid var(--ring); border-radius: 10px; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums; }
 
+/* previsti: abbinamento proposto (sì / no) e "Mostra tutti" dei movimenti */
+.plan-match-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.more-btn { display: block; width: 100%; margin-top: 12px; }
+
 /* ── telefono e Safari: ritocchi finali (in fondo, così valgono su tutte le regole sopra) ── */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -605,8 +609,13 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
     box-sizing: border-box; min-height: 44px; text-align: left; }
   input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
   .field { min-width: 0; }
-  table.tx tr { grid-template-columns: auto minmax(0, 1fr) minmax(0, max-content); }
-  table.tx td:nth-child(3) { min-width: 0; max-width: 100%; }
+  /* l'etichetta della categoria non deve stringere la descrizione: al massimo metà riga, poi "…" */
+  /* 4 colonne: la descrizione usa tutto tranne l'importo; l'etichetta della categoria usa lo spazio
+     libero della seconda riga (colonne 3-4) e non stringe la descrizione. Al massimo metà riga, poi "…" */
+  table.tx tr { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  table.tx td:nth-child(2) { grid-column: 1 / 4; }
+  table.tx td:nth-child(5) { grid-column: 4; }
+  table.tx td:nth-child(3) { grid-column: 3 / 5; min-width: 0; max-width: 46vw; }
   table.tx .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 }
 @media (max-width: 380px) {
@@ -617,3 +626,7 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
   .month-nav .segmented button { padding: 5px 7px; }
   .top-actions .btn { padding: 6px 8px; font-size: 14px; }
 }
+
+/* la scheda Movimenti sta prima dei riquadri: spazio sotto (20px, 14px sul telefono) */
+#worth-card + #tx-card { margin-bottom: 20px; }
+@media (max-width: 640px) { #worth-card + #tx-card { margin-bottom: 14px; } }

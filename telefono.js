@@ -350,16 +350,21 @@
   // Previsti: promemoria di entrate/spese attese (data/previsti.json), mai nei totali.
   async function planned(body) {
     const action = body.azione;
-    if (!["salva", "elimina"].includes(action)) return reply(400, { errore: "richiesta non valida" });
+    if (!["salva", "elimina", "scarta"].includes(action)) return reply(400, { errore: "richiesta non valida" });
     if (!snapshot) return reply(409, { errore: "dati non ancora caricati" });
     const id = String(body.id || "");
     const known = (view().previsti || []).find((p) => p.id === id);
     if (id && !known) return reply(400, { errore: "voce non trovata" });
 
-    let entry = null, message;
+    let entry = null, message, rejected = null;
     if (action === "elimina") {
       if (!id) return reply(400, { errore: "voce non trovata" });
       message = "Previsti: tolta una voce (app)";
+    } else if (action === "scarta") {
+      // "Non è questo": il movimento proposto non è quello giusto e non si propone più
+      rejected = String(body.movimento || "");
+      if (!id || !known.forse || known.forse.id !== rejected) return reply(400, { errore: "abbinamento non trovato" });
+      message = "Previsti: abbinamento scartato (app)";
     } else {
       const when = String(body.data || "");
       const amountText = String(body.importo || "").trim().replace(",", ".");
@@ -391,7 +396,15 @@
 
     const commit = await writeJson("data/previsti.json", (cur) => {
       let list = (Array.isArray(cur.voci) ? cur.voci : []).filter((e) => e && String(e.id || "").startsWith("plan-"));
-      if (id && !list.some((e) => e.id === id)) throw new Fail(400, { errore: "voce non trovata" });
+      const old = list.find((e) => e.id === id);
+      if (id && !old) throw new Fail(400, { errore: "voce non trovata" });
+      const scartati = (Array.isArray(old?.scartati) ? old.scartati : []).filter((x) => typeof x === "string");
+      if (rejected) {
+        old.scartati = (scartati.includes(rejected) ? scartati : [...scartati, rejected]).slice(-20);
+        entry = old;
+      } else if (entry) {
+        entry.scartati = scartati;  // modificando la voce, gli abbinamenti scartati restano scartati
+      }
       list = list.filter((e) => e.id !== id);
       if (entry) list.push(entry);
       list.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -403,6 +416,10 @@
     }, message);
 
     remember(commit, (d) => {
+      if (rejected) {
+        for (const p of d.previsti || []) if (p.id === id) p.forse = null;
+        return;
+      }
       d.previsti = (d.previsti || []).filter((p) => p.id !== id);
       if (!entry) return;
       const amount = Number(entry.importo);
