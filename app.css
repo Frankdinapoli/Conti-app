@@ -103,7 +103,13 @@
 /* ═══ base ════════════════════════════════════════════════════════════ */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--page); }
+/* comportamento da app, non da sito: niente riflesso grigio al tocco, niente zoom col doppio tocco,
+   niente selezione o menu "copia" tenendo premuti pulsanti e barre (il testo dei campi resta selezionabile) */
+body { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button, .btn, .tab, .topbar, .tabbar, .segmented, .tx-row, .chip, .sheet-handle, h2, h3, .tx-day {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
 body {
   font: 400 var(--f-body)/var(--l-body) var(--font);
   letter-spacing: -0.022em;
@@ -605,13 +611,19 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
 .tabbar { display: none; }
 @media (max-width: 640px) {
   .topbar { padding: calc(env(safe-area-inset-top) + 4px) calc(env(safe-area-inset-right) + 8px) 6px calc(env(safe-area-inset-left) + 8px); gap: 4px; }
+  /* barra fissa come una UINavigationBar: non scende con il rimbalzo quando si tira la pagina verso il basso;
+     finché la pagina è in cima ha lo stesso colore dello sfondo (si fonde con la barra di stato e la Dynamic
+     Island), il materiale sfocato compare solo quando il contenuto le scorre sotto. --topbar-h lo misura app.js */
+  .topbar { position: fixed; left: 0; right: 0; top: 0; }
+  .topbar:not(.scrolled) { background: var(--page); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .card, section { scroll-margin-top: calc(var(--topbar-h, 112px) + 8px); }
   .topbar-seg { padding: 0 8px; }
   /* avvisi: sul telefono solo l'icona (il testo è nel riquadro sotto e in title/aria-label), il mese resta leggibile */
   .chip { padding: 4px; background: transparent; }
   .chip .chip-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .chip { min-width: 28px; justify-content: center; }
   .topbar-seg .segmented button { min-height: 32px; }
-  main { padding: 12px calc(env(safe-area-inset-right) + var(--pad)) calc(env(safe-area-inset-bottom) + 96px) calc(env(safe-area-inset-left) + var(--pad)); }
+  main { padding: calc(var(--topbar-h, 112px) + 12px) calc(env(safe-area-inset-right) + var(--pad)) calc(env(safe-area-inset-bottom) + 96px) calc(env(safe-area-inset-left) + var(--pad)); }
   .card.wide, .grid { margin-top: 16px; }
   .grid { gap: 16px; }
   .tiles { gap: 12px; }
@@ -669,7 +681,7 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
   .filters .segmented { width: 100%; overflow-x: auto; scrollbar-width: none; }
   .filters .segmented::-webkit-scrollbar { display: none; }
   .filters .segmented button { min-height: 32px; padding: 0 12px; }
-  .filters select { flex: 1.6 1 0; min-width: 0; font-size: var(--f-sub); }
+  .filters select { flex: 1.6 1 0; min-width: 0; font-size: 16px; }
   .filters input[type="search"] { flex: 1 1 0; min-width: 0; width: auto; }
   .filters .check { flex-basis: 100%; justify-content: space-between; min-height: 44px; flex-direction: row-reverse; }
   .tx-row { padding-block: 10px; }
@@ -736,6 +748,6 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
   .plan-sum div { min-width: 0; padding: 6px 8px; }
   .plan-sum strong { font-size: var(--f-foot); overflow-wrap: anywhere; }
   .month-nav select { font-size: 16px; padding: 0 4px; }
-  .filters select, .filters input[type="search"] { font-size: var(--f-sub); }
+  .filters select, .filters input[type="search"] { font-size: 16px; }  /* sotto i 16px Safari ingrandisce la pagina */
   .worth-total { font-size: 30px; line-height: 36px; }
 }

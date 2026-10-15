@@ -1660,9 +1660,14 @@ function toast(text) {
 // barra in alto: il filetto compare solo quando la pagina scorre (come le barre di iOS)
 {
   const bar = $("topbar");
-  const sync = () => bar.classList.toggle("scrolled", window.scrollY > 4);
+  const sync = () => bar.classList.toggle("scrolled", window.scrollY > 0);
   window.addEventListener("scroll", sync, { passive: true });
   sync();
+  // altezza reale della barra (cambia con la Dynamic Island, il testo e gli avvisi): sul telefono è fissa
+  const measure = () => document.documentElement.style.setProperty("--topbar-h", `${bar.offsetHeight}px`);
+  if (window.ResizeObserver) new ResizeObserver(measure).observe(bar);
+  else for (const ev of ["resize", "scroll", "load"]) window.addEventListener(ev, measure, { passive: true });  // Safari vecchi
+  measure();
 }
 
 load();
