@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="88a87c7166a7">
+  <meta name="conti-versione" content="b6bafc73c70b">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,27 +17,32 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=93908f86e8">
+  <link rel="stylesheet" href="app.css?v=d7a2934eae">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <img src="icon.svg" alt="" width="28" height="28">
-      <span>Conti</span>
+  <header class="topbar" id="topbar">
+    <div class="topbar-row">
+      <div class="brand" id="brand">
+        <img src="icon.svg" alt="" width="28" height="28">
+        <span>Conti</span>
+      </div>
+      <nav class="month-nav" id="month-nav" aria-label="Mese" hidden>
+        <button class="icon-btn" id="prev-month" aria-label="Mese precedente">‹</button>
+        <select id="month-select" aria-label="Mese"></select>
+        <button class="icon-btn" id="next-month" aria-label="Mese successivo">›</button>
+      </nav>
+      <div class="top-actions">
+        <span class="chip" id="status-chip" hidden></span>
+        <button class="icon-btn refresh-btn" id="refresh" type="button" aria-label="Aggiorna" title="Scarica di nuovo i dati da GitHub">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        </button>
+      </div>
     </div>
-    <nav class="month-nav" id="month-nav" hidden>
+    <div class="topbar-seg" id="view-bar" hidden>
       <div class="segmented" id="view-switch" role="tablist" aria-label="Periodo">
         <button role="tab" data-view="mese" aria-selected="true">Mese</button>
         <button role="tab" data-view="anno" aria-selected="false">Anno</button>
       </div>
-      <button class="icon-btn" id="prev-month" aria-label="Mese precedente">‹</button>
-      <select id="month-select" aria-label="Mese"></select>
-      <button class="icon-btn" id="next-month" aria-label="Mese successivo">›</button>
-    </nav>
-    <div class="top-actions">
-      <span class="chip" id="status-chip" hidden></span>
-      <button class="btn ghost" id="refresh" title="Scarica di nuovo i dati da GitHub">Aggiorna</button>
-      <button class="btn ghost" id="quit" title="Cancella il token da questo telefono">Scollega</button>
     </div>
   </header>
 
@@ -156,7 +161,7 @@
           <div id="cat-chart" class="hbars"></div>
         </article>
 
-        <article class="card">
+        <article class="card" id="budget-card">
           <header class="card-head">
             <div>
               <h2>Budget</h2>
@@ -167,7 +172,7 @@
           <div id="budget-list" class="budgets"></div>
         </article>
 
-        <article class="card">
+        <article class="card" id="internal-card">
           <header class="card-head">
             <div>
               <h2>Tra i tuoi conti</h2>
@@ -283,21 +288,46 @@
             <button class="btn primary" id="add-cash" type="button">+ Contanti</button>
           </div>
         </header>
-        <div class="table-wrap">
-          <table class="tx">
-            <thead><tr><th>Data</th><th>Descrizione</th><th>Categoria</th><th>Banca</th><th class="num">Importo</th></tr></thead>
-            <tbody id="tx-body"></tbody>
-          </table>
-        </div>
+        <div class="tx-list" id="tx-body"></div>
         <button class="btn more-btn" id="tx-more" type="button" hidden></button>
       </article>
 
-      <footer class="foot" id="foot"></footer>
+      <section class="settings" id="settings" aria-labelledby="settings-title">
+        <h2 id="settings-title">Impostazioni</h2>
+        <footer class="foot" id="foot"></footer>
+        <div class="settings-actions">
+          <button class="btn ghost danger" id="quit" title="Cancella il token da questo telefono">Scollega</button>
+        </div>
+      </section>
     </div>
   </main>
 
+  <nav class="tabbar" id="tabbar" aria-label="Sezioni" hidden>
+    <button type="button" class="tab" data-target="worth-card" aria-current="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>
+      <span>Home</span>
+    </button>
+    <button type="button" class="tab" data-target="tx-card">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+      <span>Movimenti</span>
+    </button>
+    <button type="button" class="tab tab-add" id="tab-add-cash">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Contanti</span>
+    </button>
+    <button type="button" class="tab" data-target="budget-card">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 5.5"/></svg>
+      <span>Budget</span>
+    </button>
+    <button type="button" class="tab" data-target="internal-card">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      <span>Altro</span>
+    </button>
+  </nav>
+
   <dialog id="edit-dialog" aria-labelledby="edit-title">
     <form method="dialog" id="edit-form">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <h2 id="edit-title">Cambia categoria</h2>
       <p class="edit-desc" id="edit-desc"></p>
       <label class="field">
@@ -328,6 +358,7 @@
 
   <dialog id="cash-dialog" aria-labelledby="cash-title">
     <form method="dialog" id="cash-form" autocomplete="off">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <h2 id="cash-title">Registra contanti</h2>
       <div class="segmented tipo" id="cash-tipo" role="radiogroup" aria-label="Tipo">
         <label><input type="radio" name="tipo" value="spesa" checked><span id="tipo-spesa">Spesa</span></label>
@@ -356,6 +387,7 @@
 
   <dialog id="budget-dialog" aria-labelledby="budget-title">
     <form method="dialog" id="budget-form" autocomplete="off">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <h2 id="budget-title">Budget mensili</h2>
       <p class="edit-desc">Lascia vuoto per non avere un budget. Il suggerito è il 10% in meno di quanto spendi di solito
         (ultimi 3 mesi); per le spese fisse, come l'affitto, è la spesa tipica.</p>
@@ -372,6 +404,7 @@
 
   <dialog id="goal-dialog" aria-labelledby="goal-title">
     <form method="dialog" id="goal-form" autocomplete="off">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <h2 id="goal-title">Obiettivo di risparmio</h2>
       <p class="edit-desc">Quanto vuoi mettere da parte ogni mese (entrate meno uscite). È solo un traguardo da
         tenere d'occhio: non cambia nessun numero dell'app né dei report.</p>
@@ -391,6 +424,7 @@
 
   <dialog id="amex-dialog" aria-labelledby="amex-title">
     <div class="amex-dialog">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <h2 id="amex-title">Addebito American Express</h2>
       <p class="edit-desc" id="amex-sub"></p>
       <div id="amex-items"></div>
@@ -403,6 +437,7 @@
 
   <dialog id="trip-dialog" aria-labelledby="trip-title">
     <form method="dialog" id="trip-form" autocomplete="off">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <h2 id="trip-title">Nuovo viaggio</h2>
       <label class="field"><span>Nome</span><input id="trip-name" maxlength="60" placeholder="es. Roma a Natale" required></label>
       <div class="field-row two">
@@ -423,6 +458,6 @@
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <script src="telefono.js?v=5de0de55d1"></script>
-  <script src="app.js?v=f4f27b09fc"></script>
+  <script src="app.js?v=6cf7d2b7a9"></script>
 </body>
 </html>

@@ -90,6 +90,9 @@ async function api(path, body) {
 function show(id) {
   for (const sec of ["loading", "setup", "error", "dashboard"]) $(sec).hidden = sec !== id;
   $("month-nav").hidden = id !== "dashboard";
+  $("view-bar").hidden = id !== "dashboard";
+  $("brand").hidden = id === "dashboard";  // nella dashboard la barra mostra il mese, non il nome
+  $("tabbar").hidden = id !== "dashboard";
 }
 
 async function load(refresh = false) {
@@ -193,10 +196,21 @@ function render() {
     notes.unshift(`Il token GitHub di questo ${PHONE ? "telefono" : "Mac"} scade il ${fmtDate(state.data.token_scadenza)} (tra ${Math.max(tokenDays, 0)} giorni): `
       + "su GitHub → Settings → Developer settings → Fine-grained tokens apri il token → Regenerate token, poi incolla quello nuovo quando l'app lo chiede.");
   }
+  // consenso scaduto, in errore o in scadenza: sul telefono il chip in alto è solo un'icona, il testo va qui
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  let urgent = false;
+  for (const b of (state.data.stato?.banche || []).filter((x) => x.esito !== "non configurata")) {
+    const days = b.consenso_fino_a ? Math.round((new Date(b.consenso_fino_a) - today0) / 864e5) : null;
+    if (b.esito !== "ok") { urgent = true; notes.unshift(`${b.nome}: ${b.esito}. Controlla STATO.md su GitHub.`); }
+    else if (days != null && days <= 14) {
+      urgent ||= days <= 7;  // rosso come il chip solo nell'ultima settimana
+      notes.unshift(`Il consenso ${b.nome} scade tra ${Math.max(days, 0)} giorni: va rinnovato (scripts/link_account.py, poi aggiorna il secret).`);
+    }
+  }
   const stale = staleDays();
   if (stale != null) notes.unshift(`Il sync automatico non gira da ${stale} giorni: i dati potrebbero non essere aggiornati. Controlla Actions → Sync spese su GitHub (o STATO.md).`);
   $("month-notice").hidden = !notes.length;
-  $("month-notice").className = `notice${stale != null ? " critical" : ""}`;
+  $("month-notice").className = `notice${stale != null || urgent ? " critical" : ""}`;
   $("month-notice").textContent = notes.join(" ");
 
   renderWorth();
@@ -751,6 +765,61 @@ function renderFilters(m) {
     ...cats.map((c) => h("option", { value: c, text: c })));
   $("cat-filter").value = cats.includes(state.cat) ? state.cat : "";
 }
+// ── raggruppamento per giorno (testato da tests/test_telefono.py) ──
+const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// "Oggi", "Ieri", poi "lun 12 ottobre" (con l'anno se non è quello corrente)
+function dayLabel(iso, now = new Date()) {
+  if (!iso) return "Senza data";
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  if (iso === isoLocal(today)) return "Oggi";
+  if (iso === isoLocal(yesterday)) return "Ieri";
+  const [y, m, d] = iso.split("-").map(Number);
+  const opts = { weekday: "short", day: "numeric", month: "long" };
+  if (y !== today.getFullYear()) opts.year = "numeric";
+  return new Date(y, m - 1, d).toLocaleDateString("it-IT", opts).replace(",", "");
+}
+// Righe già ordinate: gruppi consecutivi con la stessa data.
+function groupByDay(rows) {
+  const out = [];
+  for (const t of rows) {
+    if (!out.length || out.at(-1).data !== t.data) out.push({ data: t.data, righe: [] });
+    out.at(-1).righe.push(t);
+  }
+  return out;
+}
+
+function txRow(t, { pending = false } = {}) {
+  const open = !pending && t.contanti !== "portafoglio" && !t.virtuale ? () => (t.contanti ? openCash(t.id) : openEdit(t)) : null;
+  const money = t.eur != null ? fmt(t.eur) : `${NUM.format(t.importo)} ${t.valuta}`;
+  const cat = pending ? "in attesa" : t.categoria;
+  const note = pending ? "In attesa di contabilizzazione: non conta nei totali finché la banca non la contabilizza"
+    : t.id?.startsWith("amexpay-") ? "Pagamento della carta: soldi spostati da Isybank alla Amex"
+    : t.contanti === "portafoglio" ? "Contante prelevato: entra nel portafoglio"
+    : t.contanti ? "Contanti registrati da te" : t.corretto ? "Categoria scelta da te" : null;
+  const row = h("div", { class: `tx-row${pending ? " pending" : ""}${open ? " tappable" : ""}`, title: note,
+    role: open ? "button" : null, tabindex: open ? "0" : null },
+    h("span", { class: "tx-name" }, t.descrizione, !pending && amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
+      onclick: () => openAmex(t.id) }) : null),
+    h("span", { class: `tx-amount${!pending && t.eur > 0 ? " pos-amt" : ""}`, text: (t.eur > 0 || (pending && t.importo > 0) ? "+" : "") + money }),
+    h("span", { class: "tx-meta" }, `${t.banca} · `,
+      h("span", { class: `tx-cat ${pending ? "pending-tag" : t.gruppo}${!pending && (t.corretto || t.contanti) ? " learned" : ""}`, text: cat })),
+    t.valuta !== "EUR" && t.eur != null ? h("span", { class: "tx-orig", text: `${NUM.format(t.importo)} ${t.valuta}` }) : null);
+  if (open) {
+    row.addEventListener("click", (e) => { if (!e.target.closest("button")) open(); });
+    row.addEventListener("keydown", (e) => {
+      if (e.target !== row || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      open();
+    });
+  }
+  return h("li", { class: "tx-item" }, row);
+}
+function txSection(title, rows, extra = "") {
+  return h("section", { class: `tx-section${extra}` },
+    h("h3", { class: "tx-day", text: title }),
+    h("ul", { class: "tx-group" }, rows));
+}
 function renderTransactions() {
   const q = state.search.trim().toLowerCase();
   const rows = monthTx().filter((t) =>
@@ -768,39 +837,12 @@ function renderTransactions() {
   $("tx-sub").textContent = `${short ? `ultimi ${PHONE_RECENT} di ` : ""}${rows.length} movimenti · somma ${fmt(total)}` +
     (state.allMonths ? " · tutti i mesi" : ` · ${current().label.toLowerCase()}`) +
     (pending.length ? ` · ${pending.length} in attesa, fuori dai totali` : "");
-  const body = $("tx-body");
-  const waiting = pending.map((t, i) => h("tr", { class: i === pending.length - 1 ? "pending pending-last" : "pending", title: "In attesa di contabilizzazione: non conta nei totali finché la banca non la contabilizza" },
-    h("td", { class: "date", text: fmtDate(t.data) }),
-    h("td", { text: t.descrizione }),
-    h("td", {}, h("span", { class: "tag pending-tag", text: "in attesa" })),
-    h("td", { class: "muted", text: t.banca }),
-    h("td", { class: "num" },
-      h("span", { text: (t.importo > 0 ? "+" : "") + (t.eur != null ? fmt(t.eur) : `${NUM.format(t.importo)} ${t.valuta}`) }),
-      t.valuta !== "EUR" && t.eur != null ? h("span", { class: "orig", text: `${NUM.format(t.importo)} ${t.valuta}` }) : null)));
+  const waiting = pending.length ? [txSection("In attesa", pending.map((t) => txRow(t, { pending: true })), " tx-pending")] : [];
   if (!rows.length) {
-    return body.replaceChildren(...waiting, h("tr", {}, h("td", { colspan: 5, class: "empty", text: "Nessun movimento con questi filtri." })));
+    return $("tx-body").replaceChildren(...waiting, h("p", { class: "tx-empty", text: "Nessun movimento con questi filtri." }));
   }
-  // Sul telefono si tocca tutta la riga (l'etichetta della categoria da sola è un bersaglio piccolo).
-  const openRow = (t) => (e) => {
-    if (!touchOnly.matches || e.target.closest("button") || t.contanti === "portafoglio" || t.virtuale) return;
-    if (t.contanti) openCash(t.id); else openEdit(t);
-  };
-  body.replaceChildren(...waiting, ...shown.map((t) => h("tr", { onclick: openRow(t) },
-    h("td", { class: "date", text: fmtDate(t.data) }),
-    h("td", {}, t.descrizione, amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
-      onclick: () => openAmex(t.id) }) : null),
-    h("td", {}, t.contanti === "portafoglio" || t.virtuale
-      ? h("span", { class: `tag ${t.gruppo}`, title: t.id.startsWith("amexpay-") ? "Pagamento della carta: soldi spostati da Isybank alla Amex"
-        : "Contante prelevato: entra nel portafoglio", text: t.categoria })
-      : h("button", {
-        class: `tag ${t.gruppo}${t.corretto || t.contanti ? " learned" : ""}`, type: "button",
-        title: t.contanti ? "Contanti registrati da te · clicca per modificare" : t.corretto ? "Categoria scelta da te · clicca per cambiarla" : "Clicca per cambiare la categoria",
-        onclick: () => (t.contanti ? openCash(t.id) : openEdit(t)),
-      }, t.categoria, h("span", { class: "pen", "aria-hidden": "true", text: "✎" }))),
-    h("td", { class: "muted", text: t.banca }),
-    h("td", { class: "num" },
-      h("span", { class: t.eur > 0 ? "pos-amt" : null, text: (t.eur > 0 ? "+" : "") + fmt(t.eur) }),
-      t.valuta !== "EUR" ? h("span", { class: "orig", text: `${NUM.format(t.importo)} ${t.valuta}` }) : null))));
+  $("tx-body").replaceChildren(...waiting,
+    ...groupByDay(shown).map((g) => txSection(dayLabel(g.data), g.righe.map((t) => txRow(t)))));
 }
 
 // ── stato consensi ──────────────────────────────────────────────────────
@@ -834,8 +876,10 @@ function renderStatus() {
     if (worst) {
       chip.hidden = false;
       const icon = { good: "✓", warning: "!", critical: "✕" }[worst.level];
-      chip.replaceChildren(h("span", { class: `status-icon st-${worst.level}`, text: icon }), h("span", { text: worst.text }));
-      chip.title = banks.map((b) => `${b.nome}: ${b.esito}${b.consenso_fino_a ? `, consenso fino al ${fmtDate(b.consenso_fino_a)}` : ""}`).join("\n");
+      chip.classList.toggle("quiet", worst.level === "good");  // tutto ok: forma discreta, il testo resta per i lettori di schermo
+      chip.replaceChildren(h("span", { class: `status-icon st-${worst.level}`, text: icon }), h("span", { class: "chip-text", text: worst.text }));
+      chip.setAttribute("aria-label", worst.text);  // sul telefono il testo è nascosto: resta l'icona
+      chip.title = worst.text + "\n" + banks.map((b) => `${b.nome}: ${b.esito}${b.consenso_fino_a ? `, consenso fino al ${fmtDate(b.consenso_fino_a)}` : ""}`).join("\n");
     }
     const when = new Date(st.ultimo_sync);
     foot.push(`Ultimo sync: ${when.toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })}`);
@@ -907,6 +951,24 @@ for (const b of $("view-switch").children) b.addEventListener("click", () => {
 });
 $("tx-more").addEventListener("click", () => { state.showAll = true; renderTransactions(); });
 if (PHONE) $("worth-card").after($("tx-card"));  // telefono: movimenti subito dopo il patrimonio
+
+// barra delle schede (solo schermi stretti): il tocco scorre alla scheda, la voce attiva segue lo scorrimento
+const tabs = [...document.querySelectorAll("#tabbar .tab[data-target]")];
+function setTab(id) { for (const t of tabs) t.toggleAttribute("aria-current", t.dataset.target === id); }
+for (const t of tabs) t.addEventListener("click", () => {
+  const el = $(t.dataset.target);
+  setTab(t.dataset.target);
+  if (!el || el.hidden) return scrollTo({ top: 0, behavior: "smooth" });
+  const bar = $("topbar").getBoundingClientRect().height + 8;
+  scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + scrollY - bar), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+});
+if ("IntersectionObserver" in window) {
+  // fascia sottile a circa un terzo dall'alto: la scheda che la attraversa è quella attiva
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) setTab(e.target.id);
+  }, { rootMargin: "-30% 0px -65% 0px" });
+  for (const t of tabs) { const el = $(t.dataset.target); if (el) io.observe(el); }
+}
 $("all-months").addEventListener("change", (e) => { state.allMonths = e.target.checked; renderFilters(); renderTransactions(); });
 $("prev-month").addEventListener("click", () => setMonth(state.idx - 1));
 $("next-month").addEventListener("click", () => setMonth(state.idx + 1));
@@ -1345,7 +1407,7 @@ async function saveCash(action, planId) {
 $("cash-form").addEventListener("submit", (e) => { e.preventDefault(); saveCash("salva"); });
 $("cash-cancel").addEventListener("click", () => $("cash-dialog").close());
 $("cash-delete").addEventListener("click", () => saveCash("elimina"));
-for (const id of ["add-cash", "add-cash-2"]) $(id).addEventListener("click", () => openCash(null));
+for (const id of ["add-cash", "add-cash-2", "tab-add-cash"]) $(id).addEventListener("click", () => openCash(null));
 $("add-plan").addEventListener("click", () => openPlan(null));
 $("add-initial").addEventListener("click", () => openInitial(null));
 
@@ -1593,6 +1655,14 @@ function toast(text) {
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
+}
+
+// barra in alto: il filetto compare solo quando la pagina scorre (come le barre di iOS)
+{
+  const bar = $("topbar");
+  const sync = () => bar.classList.toggle("scrolled", window.scrollY > 4);
+  window.addEventListener("scroll", sync, { passive: true });
+  sync();
 }
 
 load();
