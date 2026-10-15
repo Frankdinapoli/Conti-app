@@ -438,7 +438,7 @@ function renderCosts(m) {
 // ── obiettivo di risparmio del mese ─────────────────────────────────────
 const GOAL_STATES = {  // [colore, icona, titolo]
   in_linea: ["good", "✓", "In linea"], raggiunto: ["good", "✓", "Raggiunto"],
-  a_rischio: ["warning", "!", "A rischio"], mancato: ["critical", "✕", "Mancato"],
+  a_rischio: ["warning", "!", "Finora bene, attento al resto del mese"], mancato: ["critical", "✕", "Mancato"],
   difficile: ["critical", "✕", "Difficile"], parziale: ["neutral", "–", "Mese parziale"],
 };
 function goalBar(saved, goal, color) {
@@ -487,21 +487,36 @@ function renderGoal(m) {
   if (!g) return body.replaceChildren();
   const [color, icon, title] = GOAL_STATES[g.stato] || GOAL_STATES.parziale;
   $("goal-sub").textContent = `${m.label} · ${EUR0.format(g.importo)} al mese`;
+  const when = g.giorni > 1 ? `nei prossimi ${g.giorni} giorni` : g.giorni === 1 ? "nel prossimo giorno" : "nelle ultime ore del mese";
+  const prev = g.spese_previste ?? 0;
+  // stima a fine mese: se negativa si spenderebbe più di quanto entra
+  const neg = g.previsto != null && g.previsto < 0;
+  const endTxt = neg ? `saresti in rosso di ≈\u00a0${EUR0.format(-g.previsto)}` : `metteresti da parte ≈\u00a0${EUR0.format(g.previsto ?? 0)}`;
+  const endShort = neg ? `in rosso di ≈\u00a0${EUR0.format(-g.previsto)}` : `≈\u00a0${EUR0.format(g.previsto ?? 0)}`;
+  const limit = `Per restare sopra ${EUR0.format(g.importo)} puoi spendere al massimo ${EUR0.format(g.spendibile)}` + (g.al_giorno != null ? `, circa ${EUR0.format(g.al_giorno)} al giorno.` : ".");
   const texts = {
-    in_linea: `A fine mese, con le spese previste, ≈ ${EUR0.format(g.previsto)} messi da parte.`,
-    a_rischio: `A fine mese, con le spese previste, ≈ ${EUR0.format(g.previsto)}. Per arrivare a ${EUR0.format(g.importo)} puoi spendere ancora ${EUR0.format(g.spendibile)}`
-      + (g.al_giorno != null ? ` in ${g.giorni} giorni (≈ ${EUR0.format(g.al_giorno)} al giorno).` : "."),
-    difficile: `Finora hai messo da parte ${EUR0.format(g.messo_da_parte)}${g.previsto != null ? ` e con le spese previste a fine mese saresti a ≈ ${EUR0.format(g.previsto)}` : ""}: `
-      + `per arrivare a ${EUR0.format(g.importo)} servirebbero altre entrate o spese più leggere.`,
+    in_linea: `Anche se ${when} spendi come nei mesi scorsi (≈ ${EUR0.format(prev)}), a fine mese ${endTxt}.`,
+    a_rischio: `Oggi sei sopra l'obiettivo, ma se ${when} spendi come nei mesi scorsi (≈ ${EUR0.format(prev)}) a fine mese ${endTxt}. ${limit}`,
+    difficile: `Finora hai messo da parte ${EUR0.format(g.messo_da_parte)}, meno di ${EUR0.format(g.importo)}`
+      + (g.previsto != null ? `; se ${when} spendi come nei mesi scorsi (≈ ${EUR0.format(prev)}) a fine mese ${endTxt}` : "")
+      + `. Per arrivarci servirebbero altre entrate o spese più leggere.`,
     raggiunto: `Hai messo da parte ${fmt(g.messo_da_parte)}: ${EUR0.format(g.messo_da_parte - g.importo)} oltre l'obiettivo.`,
     mancato: `Ne sono mancati ${EUR0.format(g.importo - g.messo_da_parte)}.`,
     parziale: "Il tracciamento è iniziato a metà mese: non è confrontabile.",
   };
+  // sopra l'obiettivo ma con una stima a fine mese diversa: due righe, "Finora" e "Previsione"
+  const over = m.in_progress && g.messo_da_parte >= g.importo;
+  const split = over && (g.stato === "a_rischio" || g.stato === "in_linea") && g.previsto != null;
+  const rows = split ? [
+    goalStatus("good", "✓", "Finora sei sopra l'obiettivo", `Hai messo da parte ${EUR0.format(g.messo_da_parte)}, ${EUR0.format(g.messo_da_parte - g.importo)} oltre l'obiettivo.`),
+    goalStatus(color, icon, `Previsione a fine mese: ${endShort}`,
+      `È la stima se ${when} spendi come nei mesi scorsi (≈ ${EUR0.format(prev)}).` + (g.stato === "a_rischio" ? ` ${limit}` : "")),
+  ] : [goalStatus(color, icon, title, texts[g.stato] || "")];
   body.replaceChildren(
     h("div", { class: "goal-head" }, h("span", { class: "muted small", text: m.in_progress ? "Messo da parte finora" : "Messo da parte" }),
       h("strong", { class: "goal-value", text: fmt(g.messo_da_parte) }), h("span", { class: "muted", text: `su ${EUR0.format(g.importo)} · ${Math.max(0, Math.round(g.messo_da_parte / g.importo * 100))}%` })),
-    goalBar(g.messo_da_parte, g.importo, g.stato === "raggiunto" ? "good" : g.stato === "mancato" ? "critical" : "accent"),
-    goalStatus(color, icon, title, texts[g.stato] || ""));
+    goalBar(g.messo_da_parte, g.importo, g.stato === "raggiunto" || over ? "good" : g.stato === "mancato" ? "critical" : "accent"),
+    ...rows);
 }
 function openGoal() {
   const info = state.data.obiettivo || {};

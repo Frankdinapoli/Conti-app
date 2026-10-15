@@ -538,7 +538,7 @@
     if (!m.in_progress) return { ...out, stato: m.saldo >= goal ? "raggiunto" : "mancato" };
     const extra = (m.previsione?.speso ?? m.speso) - m.speso;
     const expected = m.saldo - extra, left = m.saldo - goal, days = Math.max(m.previsione?.giorni_rimasti || 0, 0);
-    return { ...out, stato: expected >= goal ? "in_linea" : left > 0 ? "a_rischio" : "difficile", previsto: expected,
+    return { ...out, stato: expected >= goal ? "in_linea" : left > 0 ? "a_rischio" : "difficile", previsto: expected, spese_previste: extra,
       spendibile: Math.max(left, 0), al_giorno: left > 0 && days ? left / days : null, giorni: days };
   }
   function budgetAmount(value) {
