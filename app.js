@@ -748,16 +748,29 @@ function renderTransactions() {
   $("tx-more").hidden = !short;
   if (short) $("tx-more").textContent = `Mostra tutti i ${rows.length} movimenti ${current().year ? `del ${current().key}` : `di ${current().label.toLowerCase()}`}`;
   const shown = short ? rows.slice(0, PHONE_RECENT) : rows;
+  // In attesa di contabilizzazione: in cima, solo nel periodo in corso e senza filtri; mai nella somma.
+  const pending = current().in_progress && !state.allMonths && !q && !state.cat && state.group === "tutti" ? state.data.in_attesa || [] : [];
   $("tx-sub").textContent = `${short ? `ultimi ${PHONE_RECENT} di ` : ""}${rows.length} movimenti · somma ${fmt(total)}` +
-    (state.allMonths ? " · tutti i mesi" : ` · ${current().label.toLowerCase()}`);
+    (state.allMonths ? " · tutti i mesi" : ` · ${current().label.toLowerCase()}`) +
+    (pending.length ? ` · ${pending.length} in attesa, fuori dai totali` : "");
   const body = $("tx-body");
-  if (!rows.length) return body.replaceChildren(h("tr", {}, h("td", { colspan: 5, class: "empty", text: "Nessun movimento con questi filtri." })));
+  const waiting = pending.map((t, i) => h("tr", { class: i === pending.length - 1 ? "pending pending-last" : "pending", title: "In attesa di contabilizzazione: non conta nei totali finché la banca non la contabilizza" },
+    h("td", { class: "date", text: fmtDate(t.data) }),
+    h("td", { text: t.descrizione }),
+    h("td", {}, h("span", { class: "tag pending-tag", text: "in attesa" })),
+    h("td", { class: "muted", text: t.banca }),
+    h("td", { class: "num" },
+      h("span", { text: (t.importo > 0 ? "+" : "") + (t.eur != null ? fmt(t.eur) : `${NUM.format(t.importo)} ${t.valuta}`) }),
+      t.valuta !== "EUR" && t.eur != null ? h("span", { class: "orig", text: `${NUM.format(t.importo)} ${t.valuta}` }) : null)));
+  if (!rows.length) {
+    return body.replaceChildren(...waiting, h("tr", {}, h("td", { colspan: 5, class: "empty", text: "Nessun movimento con questi filtri." })));
+  }
   // Sul telefono si tocca tutta la riga (l'etichetta della categoria da sola è un bersaglio piccolo).
   const openRow = (t) => (e) => {
     if (!touchOnly.matches || e.target.closest("button") || t.contanti === "portafoglio" || t.virtuale) return;
     if (t.contanti) openCash(t.id); else openEdit(t);
   };
-  body.replaceChildren(...shown.map((t) => h("tr", { onclick: openRow(t) },
+  body.replaceChildren(...waiting, ...shown.map((t) => h("tr", { onclick: openRow(t) },
     h("td", { class: "date", text: fmtDate(t.data) }),
     h("td", {}, t.descrizione, amexOf(t.id) ? h("button", { class: "link-btn amex-link", type: "button", text: " · vedi le voci",
       onclick: () => openAmex(t.id) }) : null),

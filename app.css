@@ -594,6 +594,21 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
 .recon-diff { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--critical-text); white-space: nowrap; }
 .recon-detail { padding: 0 0 10px 28px; }
 
+/* movimenti in attesa di contabilizzazione: visibili, ma chiaramente fuori dai totali */
+table.tx tr.pending { background: color-mix(in srgb, var(--surface-2) 45%, transparent); cursor: default; }
+table.tx tr.pending td { color: var(--ink-2); }
+table.tx tr.pending td:nth-child(2) { font-weight: 450; }
+table.tx tr.pending td.num span:first-child { font-style: italic; }
+table.tx tr.pending:hover td { background: transparent; }
+table.tx tr.pending.pending-last td, table.tx tr.pending.pending-last { border-bottom-color: var(--axis); }
+.tag.pending-tag { background: transparent; border: 1px dotted var(--muted); color: var(--ink-2); font-style: italic; }
+.tag.pending-tag::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px;
+  border: 1.5px solid currentColor; border-radius: 50%;
+  background: linear-gradient(currentColor, currentColor) 50% 15% / 1.5px 3px no-repeat,
+              linear-gradient(currentColor, currentColor) 50% 50% / 3px 1.5px no-repeat;
+}
+
 /* ── telefono e Safari: ritocchi finali (in fondo, così valgono su tutte le regole sopra) ── */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -673,3 +688,7 @@ button, a, select, .hbar, .internal-row.link, table.tx tr { touch-action: manipu
 /* la scheda Movimenti sta prima dei riquadri: spazio sotto (20px, 14px sul telefono) */
 #worth-card + #tx-card { margin-bottom: 20px; }
 @media (max-width: 640px) { #worth-card + #tx-card { margin-bottom: 14px; } }
+
+@media (max-width: 640px) {
+  table.tx tr.pending { cursor: default; margin: 0 -6px; padding-left: 8px; padding-right: 8px; border-radius: 10px; }
+}
