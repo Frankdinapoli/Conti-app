@@ -15,6 +15,9 @@
   --fill: rgba(118, 118, 128, 0.12);     /* systemFill: segmentato, tasti premuti */
   --fill-strong: rgba(118, 118, 128, 0.2);
   --bar-bg: rgba(249, 249, 249, 0.82);   /* barre traslucide */
+  /* barra in alto: stesso colore della barra di stato di iOS (opaca nelle app web, non ci si può disegnare
+     sotto), così scorrendo non resta una fascia di colore diverso attorno alla Dynamic Island */
+  --topbar-bg: rgba(255, 255, 255, 0.86);
   /* etichette (le secondarie sono più scure di iOS: il 60% non arriva a 4,5:1) */
   --ink: #000000;
   --ink-2: #55555a;
@@ -66,6 +69,7 @@
     --fill: rgba(118, 118, 128, 0.24);
     --fill-strong: rgba(118, 118, 128, 0.36);
     --bar-bg: rgba(29, 29, 31, 0.8);
+    --topbar-bg: rgba(0, 0, 0, 0.82);
     --ink: #ffffff;
     --ink-2: #aeaeb2;
     --muted: #98989d;
@@ -135,7 +139,7 @@ h3 { font-size: var(--f-body); line-height: var(--l-body); font-weight: 600; }  
   position: sticky; top: 0; z-index: 10;
   display: flex; flex-direction: column; align-items: stretch; gap: 6px;
   padding: 8px max(var(--pad), calc((100% - 1320px) / 2 + var(--pad))) 8px;
-  background: var(--bar-bg);
+  background: var(--topbar-bg);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   box-shadow: 0 0.5px 0 transparent;
