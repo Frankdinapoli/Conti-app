@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="287fb78c8f92">
+  <meta name="conti-versione" content="79eb28b65354">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=b1aad950d2">
+  <link rel="stylesheet" href="app.css?v=de9b02bd3a">
 </head>
 <body>
   <header class="topbar" id="topbar">
@@ -27,26 +27,37 @@
         <span>Conti</span>
       </div>
       <nav class="month-nav" id="month-nav" aria-label="Mese" hidden>
-        <button class="icon-btn" id="prev-month" aria-label="Mese precedente">‹</button>
-        <select id="month-select" aria-label="Mese"></select>
-        <button class="icon-btn" id="next-month" aria-label="Mese successivo">›</button>
+        <button class="icon-btn" id="prev-month" type="button" aria-label="Mese precedente">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg>
+        </button>
+        <button class="icon-btn" id="next-month" type="button" aria-label="Mese successivo">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5 16.5 12 9 19.5"/></svg>
+        </button>
       </nav>
+      <span class="nav-title" id="nav-title" aria-hidden="true"></span>
       <div class="top-actions">
         <span class="chip" id="status-chip" hidden></span>
         <button class="icon-btn refresh-btn" id="refresh" type="button" aria-label="Aggiorna" title="Scarica di nuovo i dati da GitHub">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
         </button>
-      </div>
-    </div>
-    <div class="topbar-seg" id="view-bar" hidden>
-      <div class="segmented" id="view-switch" role="tablist" aria-label="Periodo">
-        <button role="tab" data-view="mese" aria-selected="true">Mese</button>
-        <button role="tab" data-view="anno" aria-selected="false">Anno</button>
+        <button class="icon-btn top-add" id="tab-add-cash" type="button" aria-label="Aggiungi contanti" title="Registra una spesa o un'entrata in contanti">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg>
+        </button>
       </div>
     </div>
   </header>
 
   <main id="app">
+    <div class="page-head" id="view-bar" hidden>
+      <div class="large-title" id="large-title">
+        <select id="month-select" aria-label="Mese"></select>
+      </div>
+      <div class="segmented" id="view-switch" role="tablist" aria-label="Periodo">
+        <button role="tab" data-view="mese" aria-selected="true">Mese</button>
+        <button role="tab" data-view="anno" aria-selected="false">Anno</button>
+      </div>
+    </div>
+
     <section class="loading" id="loading">
       <div class="spinner" aria-hidden="true"></div>
       <p>Scarico i dati da GitHub…</p>
@@ -93,209 +104,191 @@
       <div class="notice" id="month-notice" hidden></div>
 
       <section class="card worth" id="worth-card" hidden>
-        <div class="worth-main">
-          <span class="muted small">Patrimonio oggi · conti + contanti</span>
-          <strong class="worth-total" id="worth-total"></strong>
-          <div class="worth-parts" id="worth-parts"></div>
-          <p class="muted small" id="worth-note"></p>
+        <header class="card-head">
+          <h2>Patrimonio</h2>
+        </header>
+        <div class="group worth-group">
+          <div class="worth-main">
+            <span class="muted small">Oggi · conti + contanti</span>
+            <strong class="worth-total" id="worth-total"></strong>
+          </div>
+          <div class="worth-side">
+            <div class="chart worth-chart" id="worth-chart"></div>
+          </div>
         </div>
-        <div class="worth-side">
-          <div class="chart worth-chart" id="worth-chart"></div>
-        </div>
+        <div class="group worth-parts" id="worth-parts"></div>
+        <p class="muted small section-foot" id="worth-note"></p>
       </section>
 
       <section class="card alerts" id="alerts-card" hidden>
         <header class="card-head">
-          <div>
-            <h2>Da controllare</h2>
-            <p class="muted small">Controlli automatici: niente viene modificato, decidi tu</p>
-          </div>
+          <h2>Da controllare</h2>
         </header>
-        <div id="alerts-body"></div>
+        <div class="group " id="alerts-body"></div>
+        <p class="muted small section-foot">Controlli automatici: niente viene modificato, decidi tu</p>
       </section>
 
-      <section class="tiles" id="tiles"></section>
+      <section class="card" id="tiles-card">
+        <header class="card-head">
+          <h2>Riepilogo</h2>
+        </header>
+        <div class="tiles" id="tiles"></div>
+      </section>
 
       <section class="card goal" id="goal-card" hidden>
         <header class="card-head">
-          <div>
-            <h2>Obiettivo di risparmio</h2>
-            <p class="muted small" id="goal-sub">Quanto metti da parte ogni mese: entrate meno uscite</p>
-          </div>
+          <h2>Obiettivo di risparmio</h2>
           <button class="btn" id="goal-edit" type="button">Modifica</button>
         </header>
-        <div id="goal-body"></div>
+        <div class="group pad" id="goal-body"></div>
+        <p class="muted small section-foot" id="goal-sub">Quanto metti da parte ogni mese: entrate meno uscite</p>
       </section>
 
       <section class="card tips" id="tips-card" hidden>
         <header class="card-head">
-          <div>
-            <h2>Consigli per spendere meno</h2>
-            <p class="muted small" id="tips-sub">Calcolati sulle tue spese degli ultimi mesi · stime prudenti</p>
-          </div>
+          <h2>Consigli per spendere meno</h2>
         </header>
-        <div id="tips-body"></div>
+        <div class="group " id="tips-body"></div>
+        <p class="muted small section-foot" id="tips-sub">Calcolati sulle tue spese degli ultimi mesi · stime prudenti</p>
       </section>
 
       <section class="grid">
         <article class="card">
           <header class="card-head">
-            <div>
-              <h2>Entrate e uscite</h2>
-              <p class="muted small">Ultimi mesi · clicca un mese per aprirlo</p>
-            </div>
+            <h2>Entrate e uscite</h2>
             <div class="legend" id="trend-legend"></div>
           </header>
-          <div class="chart" id="trend-chart"></div>
-          <h3 class="subhead">Saldo del mese</h3>
-          <div class="chart short" id="saldo-chart"></div>
+          <div class="group pad">
+            <div class="chart" id="trend-chart"></div>
+            <h3 class="subhead">Saldo del mese</h3>
+            <div class="chart short" id="saldo-chart"></div>
+          </div>
+          <p class="muted small section-foot">Ultimi mesi · tocca un mese per aprirlo</p>
         </article>
 
         <article class="card">
           <header class="card-head">
-            <div>
-              <h2>Spese per categoria</h2>
-              <p class="muted small" id="cat-sub"></p>
-            </div>
+            <h2>Spese per categoria</h2>
           </header>
-          <div id="cat-chart" class="hbars"></div>
+          <div class="group pad hbars" id="cat-chart"></div>
+          <p class="muted small section-foot" id="cat-sub"></p>
         </article>
 
-        <article class="card" id="budget-card">
-          <header class="card-head">
-            <div>
-              <h2>Budget</h2>
-              <p class="muted small">Limiti di spesa mensili per categoria</p>
-            </div>
-            <button class="btn" id="budget-edit" type="button">Modifica</button>
-          </header>
-          <div id="budget-list" class="budgets"></div>
-        </article>
+      <article class="card" id="budget-card">
+        <header class="card-head">
+          <h2>Budget</h2>
+          <button class="btn" id="budget-edit" type="button">Modifica</button>
+        </header>
+        <div class="group pad budgets" id="budget-list"></div>
+        <p class="muted small section-foot">Limiti di spesa mensili per categoria</p>
+      </article>
 
-        <article class="card" id="internal-card">
-          <header class="card-head">
-            <div>
-              <h2>Tra i tuoi conti</h2>
-              <p class="muted small">Non sono né entrate né uscite: i soldi restano tuoi</p>
-            </div>
-          </header>
-          <div id="internal-list"></div>
-        </article>
+      <article class="card" id="internal-card">
+        <header class="card-head">
+          <h2>Tra i tuoi conti</h2>
+        </header>
+        <div class="group " id="internal-list"></div>
+        <p class="muted small section-foot">Non sono né entrate né uscite: i soldi restano tuoi</p>
+      </article>
 
-        <article class="card" id="costs-card">
-          <header class="card-head">
-            <div>
-              <h2>Costi di banca e cambio</h2>
-              <p class="muted small">Quanto perdi cambiando tra le tue valute e in commissioni</p>
-            </div>
-          </header>
-          <div id="costs-body"></div>
-        </article>
+      <article class="card" id="costs-card">
+        <header class="card-head">
+          <h2>Costi di banca e cambio</h2>
+        </header>
+        <div class="group " id="costs-body"></div>
+        <p class="muted small section-foot">Quanto perdi cambiando tra le tue valute e in commissioni</p>
+      </article>
 
-        <article class="card" id="recon-card">
-          <header class="card-head">
-            <div>
-              <h2>Quadratura dei conti</h2>
-              <p class="muted small" id="recon-sub">Saldo della banca = saldo iniziale + movimenti scaricati</p>
-            </div>
-          </header>
-          <div id="recon-body"></div>
-        </article>
+      <article class="card" id="recon-card">
+        <header class="card-head">
+          <h2>Quadratura dei conti</h2>
+        </header>
+        <div class="group " id="recon-body"></div>
+        <p class="muted small section-foot" id="recon-sub">Saldo della banca = saldo iniziale + movimenti scaricati</p>
+      </article>
 
-        <article class="card" id="wallet-card" hidden>
-          <header class="card-head">
-            <div>
-              <h2>Portafoglio contanti</h2>
-              <p class="muted small">Prelievi al bancomat meno spese in contanti registrate</p>
-            </div>
-            <div class="head-actions">
-              <button class="btn ghost" id="add-initial" type="button" title="Il contante che avevi già: non è un'entrata né un prelievo">Ce l'ho già</button>
-              <button class="btn" id="add-cash-2" type="button">+ Contanti</button>
-            </div>
-          </header>
-          <div id="wallet-body"></div>
-        </article>
+      <article class="card" id="wallet-card" hidden>
+        <header class="card-head">
+          <h2>Portafoglio contanti</h2>
+          <div class="head-actions">
+            <button class="btn ghost" id="add-initial" type="button" title="Il contante che avevi già: non è un'entrata né un prelievo">Ce l'ho già</button>
+            <button class="btn" id="add-cash-2" type="button">+ Contanti</button>
+          </div>
+        </header>
+        <div class="group " id="wallet-body"></div>
+        <p class="muted small section-foot">Prelievi al bancomat meno spese in contanti registrate</p>
+      </article>
 
-        <article class="card" id="recurring-card">
-          <header class="card-head">
-            <div>
-              <h2>Spese ricorrenti</h2>
-              <p class="muted small">Riconosciute da sole: pagamenti regolari con importi simili</p>
-            </div>
-          </header>
-          <div id="recurring-body"></div>
-        </article>
+      <article class="card" id="recurring-card">
+        <header class="card-head">
+          <h2>Spese ricorrenti</h2>
+        </header>
+        <div class="group " id="recurring-body"></div>
+        <p class="muted small section-foot">Riconosciute da sole: pagamenti regolari con importi simili</p>
+      </article>
 
-        <article class="card" id="amex-card" hidden>
-          <header class="card-head">
-            <div>
-              <h2>Carta American Express</h2>
-              <p class="muted small">L'addebito mensile è la spesa; qui vedi cosa contiene</p>
-            </div>
-            <div class="head-actions">
-              <button class="btn ghost" id="amex-import" type="button">Importa estratto (PDF)</button>
-              <button class="btn" id="amex-add" type="button">+ Spesa Amex</button>
-            </div>
-          </header>
-          <input type="file" id="amex-file" accept="application/pdf,.pdf" hidden>
-          <div id="amex-body"></div>
-        </article>
+      <article class="card" id="amex-card" hidden>
+        <header class="card-head">
+          <h2>Carta American Express</h2>
+          <div class="head-actions">
+            <button class="btn ghost" id="amex-import" type="button">Importa estratto (PDF)</button>
+            <button class="btn" id="amex-add" type="button">+ Spesa Amex</button>
+          </div>
+        </header>
+        <div class="group " id="amex-body"></div>
+        <input type="file" id="amex-file" accept="application/pdf,.pdf" hidden>
+        <p class="muted small section-foot">L'addebito mensile è la spesa; qui vedi cosa contiene</p>
+      </article>
 
-        <article class="card" id="trips-card">
-          <header class="card-head">
-            <div>
-              <h2>Viaggi</h2>
-              <p class="muted small">Le spese di quei giorni, raggruppate · senza affitto e abbonamenti</p>
-            </div>
-            <button class="btn" id="add-trip" type="button">+ Viaggio</button>
-          </header>
-          <div id="trips-body"></div>
-        </article>
+      <article class="card" id="trips-card">
+        <header class="card-head">
+          <h2>Viaggi</h2>
+          <button class="btn" id="add-trip" type="button">+ Viaggio</button>
+        </header>
+        <div class="group " id="trips-body"></div>
+        <p class="muted small section-foot">Le spese di quei giorni, raggruppate · senza affitto e abbonamenti</p>
+      </article>
 
-        <article class="card" id="plan-card">
-          <header class="card-head">
-            <div>
-              <h2>Previsti</h2>
-              <p class="muted small">Entrate che aspetti e spese in arrivo · non entrano nei totali</p>
-            </div>
-            <button class="btn" id="add-plan" type="button">+ Previsto</button>
-          </header>
-          <div id="plan-body"></div>
-        </article>
+      <article class="card" id="plan-card">
+        <header class="card-head">
+          <h2>Previsti</h2>
+          <button class="btn" id="add-plan" type="button">+ Previsto</button>
+        </header>
+        <div class="group " id="plan-body"></div>
+        <p class="muted small section-foot">Entrate che aspetti e spese in arrivo · non entrano nei totali</p>
+      </article>
       </section>
 
       <article class="card wide" id="year-card" hidden>
         <header class="card-head">
-          <div>
-            <h2>Mese per mese</h2>
-            <p class="muted small">Clicca un mese per aprirlo</p>
-          </div>
+          <h2>Mese per mese</h2>
         </header>
-        <div id="year-body"></div>
+        <div class="group " id="year-body"></div>
+        <p class="muted small section-foot">Tocca un mese per aprirlo</p>
       </article>
 
-      <article class="card wide" id="tx-card">
+      <section class="card wide" id="tx-card">
         <header class="card-head wrap">
-          <div>
-            <h2>Movimenti</h2>
-            <p class="muted small" id="tx-sub"></p>
-          </div>
-          <div class="filters">
-            <div class="segmented" id="group-filter" role="tablist"></div>
-            <select id="cat-filter" aria-label="Categoria"></select>
-            <input id="search" type="search" placeholder="Cerca…" aria-label="Cerca nei movimenti">
-            <label class="check"><input type="checkbox" id="all-months"> Tutti i mesi</label>
-            <button class="btn primary" id="add-cash" type="button">+ Contanti</button>
-          </div>
+          <h2>Movimenti</h2>
         </header>
+        <div class="filters">
+          <div class="segmented" id="group-filter" role="tablist"></div>
+          <select id="cat-filter" aria-label="Categoria"></select>
+          <input id="search" type="search" placeholder="Cerca" aria-label="Cerca nei movimenti">
+          <label class="check"><span>Tutti i mesi</span><input type="checkbox" id="all-months"></label>
+          <button class="btn primary" id="add-cash" type="button">+ Contanti</button>
+        </div>
+        <p class="muted small section-foot tx-foot" id="tx-sub"></p>
         <div class="tx-list" id="tx-body"></div>
         <button class="btn more-btn" id="tx-more" type="button" hidden></button>
-      </article>
+      </section>
 
-      <section class="settings" id="settings" aria-labelledby="settings-title">
-        <h2 id="settings-title">Impostazioni</h2>
-        <footer class="foot" id="foot"></footer>
-        <div class="settings-actions">
+      <section class="card settings" id="settings" aria-labelledby="settings-title">
+        <header class="card-head">
+          <h2 id="settings-title">Impostazioni</h2>
+        </header>
+        <footer class="group foot" id="foot"></footer>
+        <div class="group settings-actions">
           <button class="btn ghost danger" id="quit" title="Cancella il token da questo telefono">Scollega</button>
         </div>
       </section>
@@ -304,23 +297,23 @@
 
   <nav class="tabbar" id="tabbar" aria-label="Sezioni" hidden>
     <button type="button" class="tab" data-target="worth-card" aria-current="true">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>
+      <svg class="off" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11.2 12 3.8l8.5 7.4"/><path d="M5.6 9.6v9.6a1 1 0 0 0 1 1h10.8a1 1 0 0 0 1-1V9.6"/><path d="M10 20.2v-5.4h4v5.4"/></svg>
+      <svg class="on" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M11.3 2.9a1 1 0 0 1 1.4 0l8.6 7.5a.9.9 0 0 1-.6 1.6h-1.3v7.2a1.6 1.6 0 0 1-1.6 1.6H6.2a1.6 1.6 0 0 1-1.6-1.6V12H3.3a.9.9 0 0 1-.6-1.6zM9.8 20.8h4.4v-5.4a.8.8 0 0 0-.8-.8h-2.8a.8.8 0 0 0-.8.8z"/></svg>
       <span>Home</span>
     </button>
     <button type="button" class="tab" data-target="tx-card">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+      <svg class="off" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.6" cy="6.5" r=".6"/><circle cx="4.6" cy="12" r=".6"/><circle cx="4.6" cy="17.5" r=".6"/></svg>
+      <svg class="on" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.6" cy="6.5" r=".8"/><circle cx="4.6" cy="12" r=".8"/><circle cx="4.6" cy="17.5" r=".8"/></svg>
       <span>Movimenti</span>
     </button>
-    <button type="button" class="tab tab-add" id="tab-add-cash">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      <span>Contanti</span>
-    </button>
     <button type="button" class="tab" data-target="budget-card">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 5.5"/></svg>
+      <svg class="off" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 3.6a8.6 8.6 0 1 0 9.8 9.8h-9.8z"/><path d="M13.6 2.8a8.6 8.6 0 0 1 7.6 7.6h-7.6z"/></svg>
+      <svg class="on" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 3.6a8.6 8.6 0 1 0 9.8 9.8h-9.8z"/><path d="M13.6 2.8a8.6 8.6 0 0 1 7.6 7.6h-7.6z"/></svg>
       <span>Budget</span>
     </button>
     <button type="button" class="tab" data-target="internal-card">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      <svg class="off" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="7.9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16.1" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+      <svg class="on" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8zM7.9 10.9a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zm4.1 0a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zm4.1 0a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2z"/></svg>
       <span>Altro</span>
     </button>
   </nav>
@@ -328,30 +321,33 @@
   <dialog id="edit-dialog" aria-labelledby="edit-title">
     <form method="dialog" id="edit-form">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="edit-title">Cambia categoria</h2>
+      <div class="sheet-nav">
+        <button type="button" class="btn" id="edit-cancel">Annulla</button>
+        <h2 id="edit-title">Cambia categoria</h2>
+        <button type="submit" class="btn primary" id="edit-save">Salva</button>
+      </div>
       <p class="edit-desc" id="edit-desc"></p>
-      <label class="field">
-        <span>Categoria</span>
-        <input id="edit-cat" list="cat-list" autocomplete="off" spellcheck="false" required maxlength="40">
-        <datalist id="cat-list"></datalist>
-        <small class="muted">Scegli dall'elenco o scrivi il nome di una categoria nuova.</small>
-      </label>
-      <fieldset class="scope" id="edit-scope">
-        <label><input type="radio" name="scope" value="esercente" checked> <span id="scope-merchant"></span></label>
-        <label><input type="radio" name="scope" value="movimento"> Solo questo movimento</label>
+      <div class="form-group">
+        <label class="field">
+          <span>Categoria</span>
+          <input id="edit-cat" list="cat-list" autocomplete="off" spellcheck="false" required maxlength="40" placeholder="Nome">
+          <datalist id="cat-list"></datalist>
+        </label>
+      </div>
+      <p class="hint">Scegli dall'elenco o scrivi il nome di una categoria nuova.</p>
+      <fieldset class="scope form-group" id="edit-scope">
+        <label><span id="scope-merchant"></span><input type="radio" name="scope" value="esercente" checked></label>
+        <label><span>Solo questo movimento</span><input type="radio" name="scope" value="movimento"></label>
       </fieldset>
       <p class="hint" id="edit-hint"></p>
       <div class="error" id="edit-error" hidden></div>
-      <div class="edit-extra" id="edit-extra">
-        <button type="button" class="btn ghost small-btn" id="edit-advance">Ho pagato anche per altri…</button>
+      <div class="form-group edit-extra" id="edit-extra">
         <label class="field compact" id="edit-trip-field"><span>Viaggio</span>
           <select id="edit-trip"></select></label>
+        <button type="button" class="btn row-btn" id="edit-advance">Ho pagato anche per altri…</button>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn ghost" id="edit-reset" hidden>Ripristina automatico</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="edit-cancel">Annulla</button>
-        <button type="submit" class="btn primary" id="edit-save">Salva</button>
       </div>
     </form>
   </dialog>
@@ -359,28 +355,31 @@
   <dialog id="cash-dialog" aria-labelledby="cash-title">
     <form method="dialog" id="cash-form" autocomplete="off">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="cash-title">Registra contanti</h2>
+      <div class="sheet-nav">
+        <button type="button" class="btn" id="cash-cancel">Annulla</button>
+        <h2 id="cash-title">Registra contanti</h2>
+        <button type="submit" class="btn primary" id="cash-save">Salva</button>
+      </div>
       <div class="segmented tipo" id="cash-tipo" role="radiogroup" aria-label="Tipo">
         <label><input type="radio" name="tipo" value="spesa" checked><span id="tipo-spesa">Spesa</span></label>
         <label><input type="radio" name="tipo" value="entrata"><span id="tipo-entrata">Entrata</span></label>
       </div>
-      <div class="field-row">
-        <label class="field"><span>Importo</span><input id="cash-amount" inputmode="decimal" placeholder="0,00" required pattern="[0-9]+([.,][0-9]{1,2})?"></label>
-        <label class="field narrow"><span>Valuta</span>
-          <select id="cash-currency"><option>EUR</option><option>DKK</option><option>SEK</option><option>NOK</option><option>CHF</option><option>GBP</option><option>USD</option></select>
-        </label>
-        <label class="field narrow"><span id="cash-date-label">Data</span><input id="cash-date" type="date" required></label>
+      <div class="form-group">
+        <div class="field-row">
+          <label class="field"><span>Importo</span><input id="cash-amount" inputmode="decimal" placeholder="0,00" required pattern="[0-9]+([.,][0-9]{1,2})?"></label>
+          <label class="field narrow"><span>Valuta</span>
+            <select id="cash-currency"><option>EUR</option><option>DKK</option><option>SEK</option><option>NOK</option><option>CHF</option><option>GBP</option><option>USD</option></select>
+          </label>
+          <label class="field narrow"><span id="cash-date-label">Data</span><input id="cash-date" type="date" required></label>
+        </div>
+        <label class="field" id="cash-desc-field"><span>Descrizione</span><input id="cash-desc" maxlength="80" placeholder="es. Caffè al bar" required></label>
+        <label class="field" id="cash-cat-field"><span>Categoria</span><input id="cash-cat" list="cash-cat-list" maxlength="40" placeholder="es. Ristoranti e bar" required>
+          <datalist id="cash-cat-list"></datalist></label>
       </div>
-      <label class="field" id="cash-desc-field"><span>Descrizione</span><input id="cash-desc" maxlength="80" placeholder="es. Caffè al bar" required></label>
-      <label class="field" id="cash-cat-field"><span>Categoria</span><input id="cash-cat" list="cash-cat-list" maxlength="40" placeholder="es. Ristoranti e bar" required>
-        <datalist id="cash-cat-list"></datalist></label>
       <p class="hint" id="cash-hint" hidden>Promemoria: non entra in statistiche, report e budget. Quando sul conto arriva un movimento simile, l'app te lo propone.</p>
       <div class="error" id="cash-error" hidden></div>
       <div class="dialog-actions">
         <button type="button" class="btn ghost danger" id="cash-delete" hidden>Elimina</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="cash-cancel">Annulla</button>
-        <button type="submit" class="btn primary" id="cash-save">Salva</button>
       </div>
     </form>
   </dialog>
@@ -388,36 +387,38 @@
   <dialog id="budget-dialog" aria-labelledby="budget-title">
     <form method="dialog" id="budget-form" autocomplete="off">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="budget-title">Budget mensili</h2>
+      <div class="sheet-nav">
+        <button type="button" class="btn" id="budget-cancel">Annulla</button>
+        <h2 id="budget-title">Budget mensili</h2>
+        <button type="submit" class="btn primary" id="budget-save">Salva</button>
+      </div>
       <p class="edit-desc">Lascia vuoto per non avere un budget. Il suggerito è il 10% in meno di quanto spendi di solito
         (ultimi 3 mesi); per le spese fisse, come l'affitto, è la spesa tipica.</p>
       <button type="button" class="btn ghost small-btn" id="budget-all" title="Solo dove non hai un budget o dove il suggerito è più basso">Usa i suggeriti più bassi</button>
-      <div id="budget-rows" class="budget-rows"></div>
+      <div id="budget-rows" class="budget-rows form-group"></div>
       <div class="error" id="budget-error" hidden></div>
-      <div class="dialog-actions">
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="budget-cancel">Annulla</button>
-        <button type="submit" class="btn primary" id="budget-save">Salva</button>
-      </div>
     </form>
   </dialog>
 
   <dialog id="goal-dialog" aria-labelledby="goal-title">
     <form method="dialog" id="goal-form" autocomplete="off">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="goal-title">Obiettivo di risparmio</h2>
+      <div class="sheet-nav">
+        <button type="button" class="btn" id="goal-cancel">Annulla</button>
+        <h2 id="goal-title">Obiettivo di risparmio</h2>
+        <button type="submit" class="btn primary" id="goal-save">Salva</button>
+      </div>
       <p class="edit-desc">Quanto vuoi mettere da parte ogni mese (entrate meno uscite). È solo un traguardo da
         tenere d'occhio: non cambia nessun numero dell'app né dei report.</p>
-      <label class="field"><span>Ogni mese voglio mettere da parte</span>
-        <span class="budget-input"><input id="goal-amount" type="text" inputmode="decimal" placeholder="es. 300"><span class="muted">€</span></span>
-      </label>
+      <div class="form-group">
+        <label class="field"><span>Ogni mese</span>
+          <span class="budget-input"><input id="goal-amount" type="text" inputmode="decimal" placeholder="es. 300"><span class="muted">€</span></span>
+        </label>
+      </div>
       <p class="hint" id="goal-hint" hidden></p>
       <div class="error" id="goal-error" hidden></div>
       <div class="dialog-actions">
         <button type="button" class="btn ghost danger" id="goal-delete" hidden>Togli l'obiettivo</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="goal-cancel">Annulla</button>
-        <button type="submit" class="btn primary" id="goal-save">Salva</button>
       </div>
     </form>
   </dialog>
@@ -425,32 +426,35 @@
   <dialog id="amex-dialog" aria-labelledby="amex-title">
     <div class="amex-dialog">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="amex-title">Addebito American Express</h2>
+      <div class="sheet-nav">
+        <span class="nav-spacer" aria-hidden="true"></span>
+        <h2 id="amex-title">Addebito American Express</h2>
+        <button type="button" class="btn primary" id="amex-close">Fine</button>
+      </div>
       <p class="edit-desc" id="amex-sub"></p>
       <div id="amex-items"></div>
-      <div class="dialog-actions">
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="amex-close">Chiudi</button>
-      </div>
     </div>
   </dialog>
 
   <dialog id="trip-dialog" aria-labelledby="trip-title">
     <form method="dialog" id="trip-form" autocomplete="off">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="trip-title">Nuovo viaggio</h2>
-      <label class="field"><span>Nome</span><input id="trip-name" maxlength="60" placeholder="es. Roma a Natale" required></label>
-      <div class="field-row two">
-        <label class="field"><span>Dal</span><input id="trip-from" type="date" required></label>
-        <label class="field"><span>Al</span><input id="trip-to" type="date" required></label>
+      <div class="sheet-nav">
+        <button type="button" class="btn" id="trip-cancel">Chiudi</button>
+        <h2 id="trip-title">Nuovo viaggio</h2>
+        <button type="submit" class="btn primary" id="trip-save">Salva</button>
+      </div>
+      <div class="form-group">
+        <label class="field"><span>Nome</span><input id="trip-name" maxlength="60" placeholder="es. Roma a Natale" required></label>
+        <div class="field-row two">
+          <label class="field"><span>Dal</span><input id="trip-from" type="date" required></label>
+          <label class="field"><span>Al</span><input id="trip-to" type="date" required></label>
+        </div>
       </div>
       <div id="trip-report"></div>
       <div class="error" id="trip-error" hidden></div>
       <div class="dialog-actions">
         <button type="button" class="btn ghost danger" id="trip-delete" hidden>Elimina</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="trip-cancel">Chiudi</button>
-        <button type="submit" class="btn primary" id="trip-save">Salva</button>
       </div>
     </form>
   </dialog>
@@ -458,6 +462,6 @@
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <script src="telefono.js?v=5de0de55d1"></script>
-  <script src="app.js?v=6fa112bff1"></script>
+  <script src="app.js?v=07f8c0e555"></script>
 </body>
 </html>

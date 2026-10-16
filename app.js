@@ -183,6 +183,7 @@ function render() {
   const prev = state.idx > 0 ? list[state.idx - 1] : null;
   const year = state.view === "anno";
   $("month-select").value = state.idx;
+  $("nav-title").textContent = m.label;
   $("prev-month").disabled = state.idx === 0;
   $("next-month").disabled = state.idx === list.length - 1;
 
@@ -263,7 +264,7 @@ function renderTiles(m, prev) {
       sub: m.previsione ? `previsione a fine mese ≈ ${EUR0.format(m.previsione.speso)}` : `${m.categorie.reduce((a, c) => a + c.n, 0)} movimenti` },
   ];
   $("tiles").replaceChildren(...tiles.map((t) =>
-    h("div", { class: `card tile${t.hero ? " hero" : ""}` },
+    h("div", { class: `tile${t.hero ? " hero" : ""}` },
       h("div", { class: "label", text: t.label }),
       h("div", { class: "value", text: fmt(t.v) }),
       delta(t.v, t.p, t.up, pl),
@@ -954,7 +955,12 @@ if (PHONE) $("worth-card").after($("tx-card"));  // telefono: movimenti subito d
 
 // barra delle schede (solo schermi stretti): il tocco scorre alla scheda, la voce attiva segue lo scorrimento
 const tabs = [...document.querySelectorAll("#tabbar .tab[data-target]")];
-function setTab(id) { for (const t of tabs) t.toggleAttribute("aria-current", t.dataset.target === id); }
+function setTab(id) {
+  for (const t of tabs) {
+    if (t.dataset.target === id) t.setAttribute("aria-current", "true");
+    else t.removeAttribute("aria-current");
+  }
+}
 for (const t of tabs) t.addEventListener("click", () => {
   const el = $(t.dataset.target);
   setTab(t.dataset.target);
@@ -1117,7 +1123,7 @@ function renderRecurring() {
       h("div", {}, h("span", { class: "muted small", text: "Al mese" }), h("strong", { text: fmt(month) })),
       h("div", {}, h("span", { class: "muted small", text: "All'anno" }), h("strong", { text: fmt(month * 12) }))),
     ...list.map((x) => h("div", { class: "internal-row rec-row" },
-      h("span", {}, h("strong", { text: x.nome }), h("small", { class: "muted", text: ` · ${x.categoria} · ${x.frequenza}${x.carta ? ` · ${x.carta}` : ""}` })),
+      h("span", {}, h("strong", { text: x.nome }), h("small", { class: "muted", text: `${x.categoria} · ${x.frequenza}${x.carta ? ` · ${x.carta}` : ""}` })),
       h("span", { class: "muted", text: x.prossimo ? `prossimo ${fmtDate(x.prossimo)}` : "" }),
       h("span", { text: fmt(x.importo) }))));
 }
@@ -1450,10 +1456,12 @@ function renderWorth() {
   $("worth-card").hidden = !w;
   if (!w) return;
   $("worth-total").textContent = fmt(w.totale);
-  const parts = w.banche.map((b) => h("span", { class: `worth-part${b.vecchio ? " old" : ""}`,
+  // le banche sono righe di una lista (etichetta a sinistra, valore grigio a destra), non pillole
+  const parts = w.banche.map((b) => h("div", { class: `internal-row worth-part${b.vecchio ? " old" : ""}`,
     title: b.vecchio ? `Ultimo saldo letto il ${fmtDate(b.data)}` : b.incompleto ? "Un conto in valuta senza tasso di cambio non è incluso" : null },
-    h("span", { class: "muted", text: b.nome }), h("strong", { text: fmt(b.eur) }), b.vecchio ? h("span", { class: "muted", text: ` · ${fmtDate(b.data)}` }) : null));
-  if (w.contanti != null) parts.push(h("span", { class: "worth-part" }, h("span", { class: "muted", text: "Contanti" }), h("strong", { text: fmt(w.contanti) })));
+    h("span", { text: b.nome }), h("span", { class: "worth-val", text: fmt(b.eur) }),
+    b.vecchio ? h("small", { class: "worth-old", text: `Ultimo saldo letto il ${fmtDate(b.data)}` }) : null));
+  if (w.contanti != null) parts.push(h("div", { class: "internal-row worth-part" }, h("span", { text: "Contanti" }), h("span", { class: "worth-val", text: fmt(w.contanti) })));
   $("worth-parts").replaceChildren(...parts);
   const notes = [`Saldi disponibili del ${fmtDate(w.aggiornato)}, come nell'app della banca.`];
   if (w.con_previsti != null) notes.push(`Con i previsti: ${fmt(w.con_previsti)}.`);
@@ -1664,7 +1672,17 @@ function toast(text) {
   window.addEventListener("scroll", sync, { passive: true });
   sync();
   // altezza reale della barra (cambia con la Dynamic Island, il testo e gli avvisi): sul telefono è fissa
-  const measure = () => document.documentElement.style.setProperty("--topbar-h", `${bar.offsetHeight}px`);
+  // titolo grande (come le app di iOS): quando esce sotto la barra, il titolo piccolo compare al centro della barra
+  let titleObserver, watched = -1;
+  const watchTitle = () => {
+    if (!window.IntersectionObserver || watched === bar.offsetHeight) return;
+    watched = bar.offsetHeight;
+    titleObserver?.disconnect();
+    titleObserver = new IntersectionObserver(([e]) => bar.classList.toggle("show-title", !e.isIntersecting && e.boundingClientRect.top < watched),
+      { rootMargin: `-${watched}px 0px 0px 0px` });
+    titleObserver.observe($("large-title"));
+  };
+  const measure = () => { document.documentElement.style.setProperty("--topbar-h", `${bar.offsetHeight}px`); watchTitle(); };
   if (window.ResizeObserver) new ResizeObserver(measure).observe(bar);
   else for (const ev of ["resize", "scroll", "load"]) window.addEventListener(ev, measure, { passive: true });  // Safari vecchi
   measure();
