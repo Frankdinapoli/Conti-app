@@ -940,6 +940,49 @@ function focusField(el, selectAll) {
   if (selectAll) el.select();
 }
 if (touchOnly.matches) for (const d of document.querySelectorAll("dialog")) { d.tabIndex = -1; d.autofocus = true; }
+
+// Fogli: trascinati in giù (con il contenuto già in cima) si chiudono come Annulla, come in iOS.
+// Si chiudono se scendono di oltre un quarto (max 140px) o con un colpo veloce; altrimenti tornano su.
+function swipeToClose(d) {
+  let y0 = null, x0 = 0, dy = 0, drag = false, timer = 0;
+  let mark = { y: 0, t: 0 }; // punto di ~100 ms fa: la velocità è quella dell'ultimo tratto
+  d.addEventListener("close", () => { clearTimeout(timer); d.classList.remove("dragging"); d.style.transform = d.style.opacity = ""; });
+  d.addEventListener("touchstart", (e) => {
+    y0 = e.touches.length === 1 && d.scrollTop <= 0 ? e.touches[0].clientY : null;
+    if (y0 === null) return;
+    x0 = e.touches[0].clientX; dy = 0; drag = false; mark = { y: 0, t: e.timeStamp };
+  }, { passive: true });
+  d.addEventListener("touchmove", (e) => {
+    if (y0 === null) return;
+    const t = e.touches[0];
+    dy = t.clientY - y0;
+    if (!drag) {
+      const dx = Math.abs(t.clientX - x0);
+      if (dy < 0 || dx > Math.max(10, dy)) { y0 = null; return; } // scorre o va di lato: non è un trascinamento
+      if (dy < 8) return;
+      drag = true;
+      d.classList.add("dragging");
+    }
+    e.preventDefault();
+    if (e.timeStamp - mark.t > 100) mark = { y: dy, t: e.timeStamp };
+    d.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  const end = (e) => {
+    const was = drag;
+    y0 = null; drag = false;
+    if (!was) return;
+    d.classList.remove("dragging");
+    const fast = (dy - mark.y) / Math.max(1, e.timeStamp - mark.t) > 0.6 && dy > 40;
+    // tocco annullato dal sistema (gesto dal bordo, notifica): torna su, mai chiudere e perdere i dati
+    if (e.type === "touchcancel" || (!fast && dy < Math.min(140, d.offsetHeight / 4))) { d.style.transform = ""; return; }
+    d.style.transform = `translateY(${d.offsetHeight + 40}px)`;
+    d.style.opacity = "0";
+    timer = setTimeout(() => d.close(), 220); // il listener "close" rimette a posto lo stile
+  };
+  d.addEventListener("touchend", end);
+  d.addEventListener("touchcancel", end);
+}
+for (const d of document.querySelectorAll("dialog")) swipeToClose(d);
 function tip(el, content) {
   el.addEventListener("mousemove", (e) => {
     tipOwner = el;

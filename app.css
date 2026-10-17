@@ -507,6 +507,8 @@ dialog {
 dialog[open] { animation: sheet-up .28s var(--ease); }
 @keyframes sheet-up { from { transform: translateY(100%); } }
 dialog:focus, dialog:focus-visible { outline: none; }
+dialog { transition: transform .22s var(--ease), opacity .22s var(--ease); }
+dialog.dragging { transition: none; }
 dialog::backdrop { background: rgba(0, 0, 0, .3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .sheet-handle { display: block; width: 36px; height: 5px; margin: 6px auto 0; border-radius: 3px; background: var(--fill-strong); }
 .sheet-nav {
