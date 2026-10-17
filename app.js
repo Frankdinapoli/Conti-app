@@ -946,7 +946,12 @@ if (touchOnly.matches) for (const d of document.querySelectorAll("dialog")) { d.
 function swipeToClose(d) {
   let y0 = null, x0 = 0, dy = 0, drag = false, timer = 0;
   let mark = { y: 0, t: 0 }; // punto di ~100 ms fa: la velocità è quella dell'ultimo tratto
-  d.addEventListener("close", () => { clearTimeout(timer); d.classList.remove("dragging"); d.style.transform = d.style.opacity = ""; });
+  d.addEventListener("close", () => {
+    clearTimeout(timer); d.classList.remove("dragging"); d.style.transform = d.style.opacity = "";
+    // il browser rimette il fuoco sulla riga toccata e Safari la lascia contornata di blu: sul tocco no
+    const el = document.activeElement;
+    if (touchOnly.matches && el && el !== document.body && !el.closest("dialog[open]")) el.blur();
+  });
   d.addEventListener("touchstart", (e) => {
     y0 = e.touches.length === 1 && d.scrollTop <= 0 ? e.touches[0].clientY : null;
     if (y0 === null) return;
