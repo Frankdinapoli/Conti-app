@@ -75,6 +75,19 @@ function s(tag, attrs = {}, ...children) {
   for (const c of children.flat()) if (c != null) el.append(c);
   return el;
 }
+// icona di stato in stile SF Symbols (checkmark/exclamationmark/xmark/minus .circle.fill): cerchio pieno + segno
+// disegnati nello stesso SVG, quindi perfettamente centrati (niente caratteri di testo)
+const STATUS_SIGNS = {
+  "✓": [["path", { d: "M7 12.4 10.4 15.8 17 8.4", class: "sg" }]],
+  "!": [["path", { d: "M12 6.6v6", class: "sg" }], ["circle", { cx: 12, cy: 16.9, r: 1.45, class: "sf" }]],
+  "✕": [["path", { d: "M8.3 8.3l7.4 7.4M15.7 8.3l-7.4 7.4", class: "sg" }]],
+  "–": [["path", { d: "M7.6 12h8.8", class: "sg" }]],
+  "…": [["circle", { cx: 7.8, cy: 12, r: 1.3, class: "sf" }], ["circle", { cx: 12, cy: 12, r: 1.3, class: "sf" }], ["circle", { cx: 16.2, cy: 12, r: 1.3, class: "sf" }]],
+};
+function statusIcon(color, sign, extra = {}) {
+  return s("svg", { class: `status-icon st-${color}`, viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false", ...extra },
+    s("circle", { cx: 12, cy: 12, r: 12, class: "disc" }), ...(STATUS_SIGNS[sign] || STATUS_SIGNS["–"]).map(([t, a]) => s(t, a)));
+}
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 // ── rete ────────────────────────────────────────────────────────────────
@@ -409,13 +422,13 @@ function renderBudget(m) {
   const rows = all.filter((b) => b.speso > 0);
   const unused = all.filter((b) => b.speso <= 0);
   const extra = unused.length ? h("p", { class: "empty small" },
-    h("span", { class: "status-icon st-good", "aria-hidden": "true", text: "✓" }),
+    statusIcon("good", "✓"),
     ` ${unused.length} budget ancora a 0 €: ${unused.map((b) => b.nome).join(", ")}`) : null;
   list.replaceChildren(...rows.map((b) => {
     const st = b.r > 1 ? ["critical", "✕", "Superato"] : b.r >= 0.8 ? ["warning", "!", "Quasi al limite"]
       : b.previsto > b.budget ? ["warning", "!", `A rischio: a fine mese\u00a0≈\u00a0${EUR0.format(b.previsto)}`] : ["good", "✓", "Nei limiti"];
     return h("div", { class: "budget-row" },
-      h("span", { class: "bname" }, h("span", { class: `status-icon st-${st[0]}`, "aria-hidden": "true", text: st[1] }),
+      h("span", { class: "bname" }, statusIcon(st[0], st[1]),
         h("span", { text: b.nome }), h("span", { class: "muted small bstate", text: st[2] })),
       h("span", { class: "bval", text: `${EUR0.format(b.speso)} / ${EUR0.format(b.budget)} · ${Math.round(b.r * 100)}%` }),
       h("div", { class: "btrack" }, h("div", { class: "bfill", style: `width:${Math.min(100, b.r * 100)}%;background:var(--${st[0]})` })));
@@ -440,7 +453,7 @@ function renderCosts(m) {
   $("costs-card").hidden = !c;
   if (!c) return;
   const year = state.years?.find((y) => y.key === m.key.slice(0, 4));
-  const row = (label, v, hint) => h("div", { class: "internal-row cost-row" }, h("span", {}, label, hint ? h("small", { class: "muted", text: ` · ${hint}` }) : null),
+  const row = (label, v, hint) => h("div", { class: "internal-row cost-row" }, h("span", {}, label, hint ? h("small", { class: "muted", text: hint }) : null),
     h("span", { text: fmt(v) }));
   $("costs-body").replaceChildren(
     h("div", { class: "wallet-balance" }, h("span", { class: "muted small", text: m.year ? "Nell'anno" : "Nel mese" }), h("strong", { text: fmt(c.totale) })),
@@ -462,7 +475,7 @@ function goalBar(saved, goal, color) {
     h("div", { class: `goal-fill st-${color}`, style: `width:${pct}%` }));
 }
 function goalStatus(color, icon, title, text) {
-  return h("p", { class: "goal-status" }, h("span", { class: `status-icon st-${color}`, "aria-hidden": "true", text: icon }),
+  return h("p", { class: "goal-status" }, statusIcon(color, icon),
     h("span", {}, h("strong", { text: `${title}. ` }), text));
 }
 function renderGoal(m) {
@@ -486,7 +499,7 @@ function renderGoal(m) {
     const chips = h("div", { class: "goal-months" }, ...m.months.filter((x) => x.obiettivo).map((x) => {
       const [color, icon] = x.in_progress ? ["neutral", "…"] : GOAL_STATES[x.obiettivo.stato] || GOAL_STATES.parziale;
       return h("span", { class: "goal-month", title: `${x.label}: ${fmt(x.saldo)}${x.in_progress ? " (in corso)" : ""}` },
-        h("span", { class: `status-icon st-${color}`, "aria-hidden": "true", text: icon }), x.short);
+        statusIcon(color, icon), x.short);
     }));
     if (!months.length) {
       return body.replaceChildren(chips, h("p", { class: "muted small", text: "Nessun mese chiuso da confrontare ancora: il primo bilancio arriva a fine mese." }));
@@ -591,7 +604,7 @@ function reconLine(x) {
     attesa: "Serve un secondo saldo: il prossimo arriva con il sync di stanotte.",
   };
   const summary = h("summary", { class: "recon-summary" },
-    h("span", { class: `status-icon st-${color}`, "aria-hidden": "true", text: icon }),
+    statusIcon(color, icon),
     h("span", { class: "recon-name" }, h("strong", { text: `${x.banca} · ${x.valuta}` }), h("span", { class: "muted small", text: `${title}. ${texts[x.stato]}` })),
     x.stato === "diff" || x.stato === "verifica" ? h("span", { class: "recon-diff", text: money(x.differenza, x.valuta) }) : null);
   if (x.movimenti == null) return h("div", { class: "recon" }, summary);
@@ -878,7 +891,7 @@ function renderStatus() {
       chip.hidden = false;
       const icon = { good: "✓", warning: "!", critical: "✕" }[worst.level];
       chip.classList.toggle("quiet", worst.level === "good");  // tutto ok: forma discreta, il testo resta per i lettori di schermo
-      chip.replaceChildren(h("span", { class: `status-icon st-${worst.level}`, text: icon }), h("span", { class: "chip-text", text: worst.text }));
+      chip.replaceChildren(statusIcon(worst.level, icon, { "aria-hidden": null }), h("span", { class: "chip-text", text: worst.text }));
       chip.setAttribute("aria-label", worst.text);  // sul telefono il testo è nascosto: resta l'icona
       chip.title = worst.text + "\n" + banks.map((b) => `${b.nome}: ${b.esito}${b.consenso_fino_a ? `, consenso fino al ${fmtDate(b.consenso_fino_a)}` : ""}`).join("\n");
     }
@@ -1424,7 +1437,7 @@ function renderAlerts() {
   if (!list.length) return;
   const byId = Object.fromEntries(state.data.movimenti.map((t) => [t.id, t]));
   $("alerts-body").replaceChildren(...list.map((a) => h("div", { class: "alert-row" },
-    h("span", { class: `status-icon st-${a.tipo === "mancanti" || a.tipo === "doppio" ? "critical" : "warning"}`, "aria-hidden": "true", text: "!" }),
+    statusIcon(a.tipo === "mancanti" || a.tipo === "doppio" ? "critical" : "warning", "!"),
     h("span", { class: "alert-text", text: a.testo }),
     h("span", { class: "alert-actions" },
       a.movimenti.length && byId[a.movimenti.at(-1)] ? h("button", { class: "btn ghost small-btn", type: "button", text: "Vedi",
@@ -1642,13 +1655,13 @@ function renderPlanned() {
     ...list.map((p) => h("div", { class: `plan-row${p.scaduto ? " late" : ""}` },
       h("button", { class: "plan-main", type: "button", title: "Clicca per modificare", onclick: () => openPlan(p.id) },
         h("span", { class: "plan-when" },
-          p.scaduto ? h("span", { class: "status-icon st-warning", "aria-hidden": "true", text: "!" }) : null,
+          p.scaduto ? statusIcon("warning", "!") : null,
           h("span", { text: whenText(p.data) })),
         h("span", { class: "plan-desc", text: p.descrizione }),
         h("span", { class: `plan-amt${p.importo > 0 ? " pos-amt" : ""}`,
           text: p.valuta === "EUR" ? (p.importo > 0 ? "+" : "") + fmt(p.importo) : `${p.importo > 0 ? "+" : ""}${NUM.format(p.importo)} ${p.valuta}` })),
       p.forse ? h("div", { class: "plan-match" },
-        h("span", { class: "status-icon st-good", "aria-hidden": "true", text: "✓" }),
+        statusIcon("good", "✓"),
         h("span", { class: "plan-match-text", text: `Arrivato? «${p.forse.descrizione}» del ${fmtDate(p.forse.data)}, ${p.forse.valuta === "EUR" ? fmt(p.forse.importo) : `${NUM.format(p.forse.importo)} ${p.forse.valuta}`} (${p.forse.banca})` }),
         h("span", { class: "plan-match-actions" },
           h("button", { class: "btn ghost small-btn", type: "button", text: "Non è questo", title: "Il movimento non corrisponde: non proporlo più",
