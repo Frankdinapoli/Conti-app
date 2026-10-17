@@ -60,6 +60,8 @@
   --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
   --glass-pill: rgba(118, 118, 128, 0.16);
   --topbar-glass: rgba(242, 242, 247, 0.93);   /* = theme-color (--page) con un po' di trasparenza */
+  --sidebar-bg: rgba(228, 228, 234, 0.82);     /* materiale "sidebar" di macOS */
+  --sidebar-sel: rgba(60, 60, 67, 0.14);
   /* geometria e movimento */
   --radius: 12px;
   --pad: 16px;
@@ -119,6 +121,8 @@
     --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
     --glass-pill: rgba(255, 255, 255, 0.17);
     --topbar-glass: rgba(0, 0, 0, 0.88);
+    --sidebar-bg: rgba(38, 38, 40, 0.84);
+    --sidebar-sel: rgba(255, 255, 255, 0.14);
     --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='14' viewBox='0 0 8 14'%3E%3Cpath d='M1.2 1.2 6.8 7l-5.6 5.8' fill='none' stroke='%235a5a5e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='14' viewBox='0 0 16 14'%3E%3Cpath d='M1.5 7.5 5.8 12 14.5 2' fill='none' stroke='%230a84ff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
@@ -741,88 +745,131 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
   .toast { bottom: 24px; }
 }
 
-/* ═══ Mac (puntatore preciso): barra degli strumenti e misure compatte ═ */
+/* ═══ Mac (puntatore preciso): barra degli strumenti, densità macOS ═══ */
+/* Testo 13px (body di macOS), righe da 32, titoli di sezione 15 semibold, barra degli strumenti da 52 con il titolo del mese e il
+   segmentato Mese/Anno (app.js li sposta nella barra: `placeParts`). Telefono e iPad non raggiungono questi blocchi. */
 @media (min-width: 641px) and (not ((hover: none) and (pointer: coarse))) {
   html { font-size: 15px; }
   :root {
-    --f-sub: 0.9333rem;  --l-sub: 1.2667rem;      /* 14/19 */
+    --f-body: 0.8667rem; --l-body: 1.2rem;        /* 13/18 */
+    --f-sub: 0.8667rem;  --l-sub: 1.2rem;         /* 13/18 */
     --f-foot: 0.8rem;    --l-foot: 1.0667rem;     /* 12/16 */
     --f-cap: 0.7333rem;  --l-cap: 0.9333rem;      /* 11/14 */
-    --f-t3: 1.1333rem;   --l-t3: 1.4rem;          /* titolo di sezione: 17/21 */
+    --f-t3: 1rem;        --l-t3: 1.3333rem;       /* titolo di sezione: 15/20 */
     --f-t1: 1.4667rem;   --l-t1: 1.8667rem;       /* 22/28 */
-    --f-large: 1.7333rem; --l-large: 2.1333rem;   /* titolo della pagina: 26/32 */
-    --l-body: 1.3333rem;
-    --row-h: 40px;
+    --f-large: 1rem;     --l-large: 1.3333rem;    /* titolo del mese nella barra degli strumenti: 15/20 */
+    --row-h: 32px;
+    --gap: 24px;
+    --content-max: 1800px;
   }
-  main { padding: 16px 28px 56px; }
-  .topbar { position: sticky; flex-direction: row; align-items: center; gap: 12px; padding: 6px max(28px, calc((100% - 1320px) / 2 + 28px)); min-height: 52px; }
+  main { max-width: var(--content-max); margin: 0 auto; padding: 20px 28px 48px; }
+  .card { --pad: 14px; }
+  .tx-group { --pad: 14px; }
+  .page-head { display: none; }
+  .topbar { position: sticky; flex-direction: row; align-items: center; gap: 12px; height: 52px; min-height: 52px; padding: 0 max(28px, calc((100% - var(--content-max)) / 2 + 28px)); }
   .topbar:not(.scrolled) { background: var(--topbar-bg); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
   .topbar-row { flex: 1; min-height: 0; gap: 8px; }
   .brand { padding-left: 0; }
-  .month-nav { gap: 2px; }
+  .month-nav { gap: 0; margin-left: -6px; }
   .nav-title { display: none; }
-  .top-actions { margin-left: auto !important; }
-  .top-add { display: none; }
-  .icon-btn, .month-nav .icon-btn { width: 32px; height: 32px; }
-  .btn { min-height: 30px; padding: 0 12px; border-radius: 8px; font-size: var(--f-sub); }
+  .top-actions { margin-left: auto !important; gap: 6px; }
+  .icon-btn, .month-nav .icon-btn { width: 28px; height: 28px; border-radius: 6px; }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .icon-btn:hover:not(:disabled) { background: var(--fill); }
+  /* titolo del mese (menu a scelta) e segmentato nella barra */
+  .large-title { flex: 0 1 auto; min-width: 0; }
+  .large-title select { padding: 3px 24px 3px 8px; border-radius: 6px; font-weight: 600; background-size: 9px 14px; background-position: right 7px center; }
+  .large-title select:hover { background-color: var(--fill); }
+  .topbar .segmented { flex: none; width: 150px; margin-left: 10px; }
+  /* "+ Contanti" nella barra (al posto di quello nei filtri) */
+  .top-add { display: inline-flex; width: auto; padding: 0 10px 0 8px; gap: 5px; background: var(--fill); }
+  .top-add svg { width: 14px; height: 14px; }
+  .top-add::after { content: "Contanti"; font: 500 var(--f-sub)/1 var(--font); }
+  .top-add:hover:not(:disabled) { background: var(--fill-strong); }
+  #add-cash { display: none; }
+  .btn { min-height: 28px; padding: 0 12px; border-radius: 6px; font-size: var(--f-sub); }
+  .btn:hover:not(:disabled):not(.primary) { background: var(--fill); }
   .btn.primary { padding: 0 16px; }
-  .btn.small-btn { min-height: 26px; font-size: var(--f-foot); }
+  .btn.primary:hover:not(:disabled) { opacity: .88; }
+  .btn.small-btn { min-height: 24px; font-size: var(--f-foot); }
   .btn.small-btn::after { inset: -4px; }
-  .card-head .btn, .head-actions .btn { margin-block: -6px; font-size: var(--f-sub); }
-  .more-btn { min-height: 36px; }
+  .card-head { margin-bottom: 6px; }
+  .card-head .btn, .head-actions .btn { margin: -6px -8px; padding-inline: 8px; font-size: var(--f-sub); }
+  .head-actions { gap: 4px 4px; }
+  .more-btn { min-height: 32px; margin-top: 12px; }
+  .group.pad { padding-block: 10px; }
+  .section-foot { margin-top: 6px; }
+  .notice { padding: 9px var(--pad); margin-top: 0; }
   .grid { align-items: start; }
-  .tx-row { min-height: 40px; padding-block: 7px; }
   .segmented button { min-height: 24px; }
-  .filters select, .filters input[type="search"] { height: 30px; }
-  .filters select { background-color: var(--fill); border-radius: 8px; padding-left: 12px; font-size: var(--f-sub); }
-  .filters input[type="search"] { border-radius: 8px; font-size: var(--f-sub); }
-  .filters .check { background: none; padding: 0; min-height: 30px; min-width: 0; gap: 10px; font-size: var(--f-sub); }
+  .filters select, .filters input[type="search"] { height: 28px; }
+  .filters select { background-color: var(--fill); border-radius: 6px; padding-left: 12px; font-size: var(--f-sub); }
+  .filters input[type="search"] { border-radius: 6px; font-size: var(--f-sub); }
+  .filters .check { background: none; padding: 0; min-height: 28px; min-width: 0; gap: 10px; font-size: var(--f-sub); }
   .check input[type="checkbox"] { width: 38px; height: 22px; }
   .check input[type="checkbox"]::after { width: 18px; height: 18px; }
   .check input[type="checkbox"]:checked::after { transform: translateX(16px); }
-  .form-group .field { min-height: 38px; }
-  .form-group .field input, .form-group .field select { height: 36px; }
-  .scope label, .edit-extra .row-btn, details.split summary { min-height: 38px; }
+  .form-group .field { min-height: 36px; }
+  .form-group .field input, .form-group .field select { height: 34px; }
+  .scope label, .edit-extra .row-btn, details.split summary { min-height: 36px; }
   .budget-input input { height: 28px; }
-  input[type="date"], .form-group .field input[type="date"] { height: 36px; min-height: 36px; line-height: 36px; }
-  .dialog-actions .btn { min-height: 34px; }
+  input[type="date"], .form-group .field input[type="date"] { height: 34px; min-height: 34px; line-height: 34px; }
+  .dialog-actions .btn { min-height: 32px; }
   .sheet-nav { min-height: 46px; }
-  .settings-actions .btn { min-height: 36px; }
+  .settings-actions .btn { min-height: 32px; }
   dialog { box-shadow: 0 0 0 0.5px var(--sep), 0 24px 64px rgba(0, 0, 0, .3); }
-  .recon-summary { flex-wrap: nowrap; }
+  /* righe: 32px, filetti sottili */
+  .internal-row { grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, 88px)); gap: 8px; padding-block: 6px; }
+  .internal-row.year { grid-template-columns: 1.4fr repeat(4, 1fr); gap: 8px; }
+  .internal-row.head { padding-block: 3px; min-height: 24px; }
+  .plan-main { grid-template-columns: 12.5em minmax(0, 1fr) auto; gap: 10px; padding-block: 6px; padding-right: calc(var(--pad) + 18px); }
+  .plan-when, .plan-desc, .plan-amt { grid-column: auto; grid-row: auto; }
+  .plan-sum div { padding-block: 6px; }
+  .alert-row { grid-template-columns: auto minmax(0, 1fr) auto; padding-block: 8px; }
+  .alert-actions { grid-column: auto; }
+  .tip-row { padding-block: 8px; }
+  .recon-summary { flex-wrap: nowrap; padding-block: 7px; }
   .recon-name { flex: 1 1 0; }
   .recon-diff { flex-basis: auto; padding-left: 0; order: 2; }
   details.recon > .recon-summary::after { order: 3; }
-  .internal-row { grid-template-columns: minmax(0, 1fr) repeat(3, 100px); font-size: var(--f-sub); line-height: var(--l-sub); gap: 8px; }
-  .internal-row.year { grid-template-columns: 1.4fr repeat(4, 1fr); font-size: var(--f-sub); gap: 8px; }
-  .internal-row.head { font-size: var(--f-cap); }
-  .hbar { grid-template-columns: 178px 1fr 92px; gap: 12px; padding: 6px 0; }
+  .foot > span, .foot > .link-btn { padding-block: 6px; }
+  .internal-row.rec-row { grid-template-columns: minmax(0, 1fr) auto 80px; }
+  .rec-row small { display: inline; margin-left: 8px; }
+  .rec-row span:nth-child(2) { grid-row: auto; grid-column: auto; font-size: var(--f-foot); text-align: right; }
+  .rec-row span:nth-child(3) { grid-row: auto; grid-column: auto; align-self: center; }
+  .internal-row.worth-part, #wallet-body .internal-row, .internal-row.cost-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .internal-row.worth-part { font-size: var(--f-body); }
+  .trip-row { grid-template-columns: 9em minmax(0, 1fr) auto; }
+  .trip-row .badge { display: inline; }
+  /* movimenti: una riga sola (descrizione · conto e categoria · importo) */
+  .tx-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 110px; gap: 0 16px; min-height: 32px; padding-block: 6px; align-items: center; }
+  .tx-name { grid-column: 1; grid-row: 1; }
+  .tx-meta { grid-column: 2; grid-row: 1; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .tx-amount { grid-column: 3; grid-row: 1; }
+  .tx-orig { grid-column: 3; grid-row: 2; }
+  .tx-section { margin-top: 14px; }
+  .tx-day { margin-bottom: 4px; }
+  /* patrimonio, riepilogo, grafici, categorie */
+  .worth-total { font-size: 1.7333rem; line-height: 2.1333rem; }
+  .worth-group { padding-block: 12px; gap: 20px; }
+  .worth-chart { height: 130px; }
+  .tiles { gap: 10px; }
+  .tile { padding: 9px 12px; }
+  .tile .value { font-size: 1.1333rem; line-height: 1.4667rem; }
+  .chart { height: 190px; }
+  .chart.short { height: 90px; }
+  .hbar { grid-template-columns: minmax(0, 160px) minmax(36px, 1fr) auto; gap: 12px; padding: 5px 0; }
   .hbar .name, .hbar .val, .hbar .track { grid-row: auto; grid-column: auto; }
-  .hbar .val small { display: block; margin-left: 0; }
-  #trip-report .hbar { grid-template-columns: minmax(0, 120px) 1fr 70px; }
+  .hbar .name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .hbar .val { white-space: nowrap; }
+  .hbar .val small { display: inline; margin-left: 8px; }
+  #trip-report .hbar { grid-template-columns: minmax(0, 120px) 1fr auto; }
+  .budgets { gap: 10px; }
   .budget-row .bname { flex-wrap: nowrap; }
   .budget-row .bname .bstate { flex-basis: auto; padding-left: 0; }
   .budget-row .bname .bstate::before { content: "· "; }
   .budget-row .bname > span:nth-child(2) { flex: 0 1 auto; }
-  .internal-row.rec-row { grid-template-columns: minmax(0, 1fr) auto 90px; }
-  .rec-row small { display: inline; margin-left: 8px; }
-  .rec-row span:nth-child(2) { grid-row: auto; grid-column: auto; font-size: var(--f-foot); text-align: right; }
-  .rec-row span:nth-child(3) { grid-row: auto; grid-column: auto; align-self: center; }
-  .internal-row.worth-part { grid-template-columns: minmax(0, 1fr) auto; font-size: var(--f-body); }
-  #wallet-body .internal-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .internal-row.cost-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .plan-main { grid-template-columns: 12.5em minmax(0, 1fr) auto; gap: 10px; }
-  .plan-when, .plan-desc, .plan-amt { grid-column: auto; grid-row: auto; }
-  .trip-row { grid-template-columns: 9em minmax(0, 1fr) auto; }
-  .trip-row .badge { display: inline; }
-  .alert-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .alert-actions { grid-column: auto; }
-  .worth-chart { height: 150px; }
-  .chart { height: 230px; }
-  .chart.short { height: 120px; }
-}
-@media (min-width: 981px) and (not ((hover: none) and (pointer: coarse))) {
-  .grid { grid-template-columns: 1.25fr 1fr; }
+  .wallet-balance { padding-block: 10px; }
 }
 
 /* ═══ iPad (schermo a tocco più largo di 640px) ═══════════════════════
@@ -874,6 +921,50 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
   .tab svg { width: 24px; height: 24px; color: var(--accent-text); flex: none; }
   .tab:active { opacity: 1; background: var(--fill); }
   .tab[aria-current] { background: var(--glass-pill); color: var(--accent-text); font-weight: 600; }
+}
+
+/* ═══ Mac, finestra >= 900px: barra laterale (sidebar) e schede a colonne ═══
+   La stessa nav.tabbar dell'iPad: voci con icona e testo su materiale "sidebar", voce attiva evidenziata.
+   Le sezioni si dispongono a colonne come una "masonry" (CSS columns, break-inside: avoid): niente buchi sotto le schede corte.
+   Sotto i 900px resta il layout a una colonna senza barra laterale. */
+@media (min-width: 900px) and (not ((hover: none) and (pointer: coarse))) {
+  :root { --side-w: 220px; }
+  :root:has(#tabbar[hidden]) { --side-w: 0px; }
+  body { padding-left: var(--side-w); }
+  .toast { bottom: 24px; left: calc(50% + var(--side-w) / 2); }
+  .tabbar {
+    position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: var(--side-w);
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 0 10px 12px; overflow-y: auto;
+    background: var(--sidebar-bg); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px);
+    box-shadow: inset -0.5px 0 0 var(--sep);
+  }
+  .tabbar::before {
+    content: "Conti"; flex: none; display: flex; align-items: center; height: 52px; margin-bottom: 4px; padding-left: 36px;
+    background: url("icon.svg") 8px center / 22px 22px no-repeat; font: 600 var(--f-t3)/var(--l-t3) var(--font); color: var(--ink);
+  }
+  .tab {
+    flex: none; display: flex; flex-direction: row; align-items: center; gap: 9px; min-height: 30px; padding: 0 10px;
+    border: 0; border-radius: 6px; background: transparent; color: var(--ink); text-align: left;
+    font: 400 var(--f-body)/var(--l-body) var(--font);
+  }
+  .tab svg { width: 18px; height: 18px; flex: none; color: var(--accent-text); }
+  .tab:hover { background: var(--fill); }
+  .tab[aria-current] { background: var(--sidebar-sel); font-weight: 600; }
+  .tab[aria-current]:hover { background: var(--sidebar-sel); }
+  /* schede a colonne: i titoli lunghi e i riquadri a tutta larghezza (notifiche, Mese per mese, Movimenti) restano interi */
+  .grid { display: contents; }
+  #dashboard { column-gap: 28px; }
+  #dashboard > .card, .grid > .card { break-inside: avoid; margin: 0 0 var(--gap); }
+  #dashboard > .notice { column-span: all; margin: 0 0 16px; }
+  #dashboard > .card.wide { column-span: all; margin-top: var(--gap, 24px); }
+  .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1160px) and (not ((hover: none) and (pointer: coarse))) {
+  #dashboard { column-count: 2; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1840px) and (not ((hover: none) and (pointer: coarse))) {
+  #dashboard { column-count: 3; }
 }
 
 /* ═══ iOS 26 "Liquid Glass": barra in alto, capsule dei pulsanti (telefono e iPad) ═══

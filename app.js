@@ -104,6 +104,7 @@ function show(id) {
   for (const sec of ["loading", "setup", "error", "dashboard"]) $(sec).hidden = sec !== id;
   $("month-nav").hidden = id !== "dashboard";
   $("view-bar").hidden = id !== "dashboard";
+  $("large-title").hidden = $("view-switch").hidden = id !== "dashboard";  // sul Mac stanno nella barra in alto
   $("brand").hidden = id === "dashboard";  // nella dashboard la barra mostra il mese, non il nome
   $("tabbar").hidden = id !== "dashboard";
 }
@@ -459,7 +460,7 @@ function renderCosts(m) {
     h("div", { class: "wallet-balance" }, h("span", { class: "muted small", text: m.year ? "Nell'anno" : "Nel mese" }), h("strong", { text: fmt(c.totale) })),
     row("Cambi valuta", c.cambi, c.cambi < 0 ? "a tuo favore rispetto al tasso BCE" : "rispetto al tasso BCE"),
     row("Commissioni", c.commissioni, "es. imposta di bollo"),
-    !m.year && year ? row("Da inizio anno", year.costi.totale) : null,
+    ...(!m.year && year ? [row("Da inizio anno", year.costi.totale)] : []),  // replaceChildren(null) scriverebbe "null"
     h("p", { class: "hint", text: "I cambi fatti pagando con la carta in un'altra valuta non si vedono: sono già dentro l'importo della spesa." }));
 }
 
@@ -631,8 +632,8 @@ function renderRecon(m) {
     const issues = lines.filter((l) => l.stato !== "ok");
     return body.replaceChildren(
       ...issues.map((l) => { const el = reconLine(l); el.querySelector(".recon-name strong").textContent += ` · ${l.mese}`; return el; }),
-      lines.length > issues.length ? goalStatus("good", "✓", issues.length ? "Il resto torna" : "Tutto torna",
-        `${lines.length - issues.length} controlli su ${lines.length}.`) : null);
+      ...(lines.length > issues.length ? [goalStatus("good", "✓", issues.length ? "Il resto torna" : "Tutto torna",
+        `${lines.length - issues.length} controlli su ${lines.length}.`)] : []));
   }
   body.replaceChildren(...lines.map(reconLine));
 }
@@ -964,7 +965,29 @@ for (const b of $("view-switch").children) b.addEventListener("click", () => {
   setView(b.dataset.view, b.dataset.view === "anno" ? cur.slice(0, 4) : state.data.mesi.filter((m) => m.key.startsWith(cur)).at(-1)?.key);
 });
 $("tx-more").addEventListener("click", () => { state.showAll = true; renderTransactions(); });
-if (PHONE) $("worth-card").after($("tx-card"));  // telefono: movimenti subito dopo il patrimonio
+// Disposizione per tipo di schermo. Telefono/iPad/finestre strette: titolo grande e segmentato in cima alla pagina, sul telefono
+// i movimenti subito dopo il patrimonio. Mac (puntatore preciso, >= 641px): titolo del mese e segmentato Mese/Anno stanno nella
+// barra degli strumenti, e Impostazioni entra tra le schede a colonne (i Movimenti restano a tutta larghezza in fondo).
+const macLayout = matchMedia("(min-width: 641px) and (not ((hover: none) and (pointer: coarse)))");
+const macWide = matchMedia("(min-width: 900px) and (not ((hover: none) and (pointer: coarse)))");
+function placeParts() {
+  const bar = document.querySelector(".topbar-row");
+  const dash = $("dashboard");
+  if (macLayout.matches) {
+    bar.insertBefore($("large-title"), $("nav-title"));
+    bar.insertBefore($("view-switch"), document.querySelector(".top-actions"));
+    // Impostazioni tra le schede solo con le colonne (>= 900px); più stretto resta in fondo alla pagina
+    const wide = macWide.matches;
+    dash.querySelector(".grid").after(...(wide ? [$("settings")] : []), $("year-card"), $("tx-card"), ...(wide ? [] : [$("settings")]));
+  } else {
+    $("view-bar").append($("large-title"), $("view-switch"));
+    if (PHONE) $("worth-card").after($("tx-card"));  // telefono: movimenti subito dopo il patrimonio
+    dash.append($("year-card"), ...(PHONE ? [] : [$("tx-card")]), $("settings"));
+  }
+}
+placeParts();
+macLayout.addEventListener("change", placeParts);
+macWide.addEventListener("change", placeParts);
 
 // barra delle schede (solo schermi stretti): il tocco scorre alla scheda, la voce attiva segue lo scorrimento
 const tabs = [...document.querySelectorAll("#tabbar .tab[data-target]")];
@@ -983,8 +1006,14 @@ for (const t of tabs) t.addEventListener("click", () => {
 });
 if ("IntersectionObserver" in window) {
   // fascia sottile a circa un terzo dall'alto: la scheda che la attraversa è quella attiva
+  // con più colonne (Mac) più schede attraversano la fascia insieme: vince la prima voce della barra
+  const inBand = new Set();
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting) setTab(e.target.id);
+    for (const e of entries) e.isIntersecting ? inBand.add(e.target.id) : inBand.delete(e.target.id);
+    // in cima alla pagina vince la prima voce con la scheda visibile (anche se la sua scheda è corta o nascosta)
+    const visible = (t) => { const el = $(t.dataset.target); return el && !el.hidden && el.offsetParent !== null; };
+    const first = window.scrollY < 10 ? tabs.find(visible) : tabs.find((t) => inBand.has(t.dataset.target));
+    if (first) setTab(first.dataset.target);
   }, { rootMargin: "-30% 0px -65% 0px" });
   for (const t of tabs) { const el = $(t.dataset.target); if (el) io.observe(el); }
 }
