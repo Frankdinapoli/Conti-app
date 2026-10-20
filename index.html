@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="6a2c7b0a73ae">
+  <meta name="conti-versione" content="de6ddfb4641f">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=043ef63044">
+  <link rel="stylesheet" href="app.css?v=9a56b05e77">
 </head>
 <body>
   <header class="topbar" id="topbar">
@@ -289,6 +289,7 @@
         </header>
         <footer class="group foot" id="foot"></footer>
         <div class="group settings-actions">
+          <button class="btn ghost" id="link-open" type="button" hidden>Collega o ricollega una banca</button>
           <button class="btn ghost danger" id="quit" title="Cancella il token da questo telefono">Scollega</button>
         </div>
       </section>
@@ -423,6 +424,37 @@
     </form>
   </dialog>
 
+  <dialog id="link-dialog" aria-labelledby="link-title">
+    <form method="dialog" id="link-form" autocomplete="off">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-nav">
+        <button type="button" class="btn" id="link-cancel">Annulla</button>
+        <h2 id="link-title">Collega una banca</h2>
+        <button type="submit" class="btn primary" id="link-save" disabled>Collega</button>
+      </div>
+      <div id="link-steps">
+        <p class="edit-desc">Serve quando il consenso della banca scade o quando aggiungi, elimini o cambi dei conti.
+          La chiave di Enable Banking si legge da questo Mac e non esce mai.</p>
+        <div class="form-group">
+          <label class="field"><span>Banca</span><select id="link-bank"></select></label>
+        </div>
+        <p class="hint">Hai cambiato o eliminato dei conti? Prima ricollega la banca nel
+          <button type="button" class="link-btn" id="link-cp">Control Panel di Enable Banking</button> (Link accounts).</p>
+        <div class="form-group edit-extra">
+          <button type="button" class="btn row-btn" id="link-start">1. Accedi alla banca</button>
+        </div>
+        <p class="hint">Si apre il browser: accedi e autorizza. Alla fine arrivi su una pagina che non si carica
+          (localhost): è normale. Copia l'indirizzo dalla barra in alto e incollalo qui sotto.</p>
+        <div class="form-group">
+          <label class="field stack"><span>2. Indirizzo</span><input id="link-address" type="text" spellcheck="false"
+            autocapitalize="off" placeholder="https://localhost/auth_redirect?…" disabled></label>
+        </div>
+        <div class="error" id="link-error" hidden></div>
+      </div>
+      <div id="link-done" hidden></div>
+    </form>
+  </dialog>
+
   <dialog id="amex-dialog" aria-labelledby="amex-title">
     <div class="amex-dialog">
       <span class="sheet-handle" aria-hidden="true"></span>
@@ -462,6 +494,6 @@
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <script src="telefono.js?v=5de0de55d1"></script>
-  <script src="app.js?v=1ae0b82cae"></script>
+  <script src="app.js?v=234a1c3746"></script>
 </body>
 </html>

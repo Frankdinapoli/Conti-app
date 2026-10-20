@@ -463,6 +463,7 @@ main { max-width: 1320px; margin: 0 auto; padding: calc(var(--topbar-h, 96px) + 
 .foot > .link-btn { width: 100%; color: var(--accent-text); }
 .settings-actions { margin-top: 12px !important; padding: 0; }
 .settings-actions .btn { width: 100%; min-height: var(--row-h); border-radius: 0; }
+.settings-actions .btn + .btn { border-top: 0.5px solid var(--sep); }
 .center-card { display: grid; place-items: center; min-height: auto; padding-top: 8px; }
 .card.setup { background: var(--surface); border-radius: var(--radius); padding: 24px var(--pad); max-width: 620px; text-align: left; }
 .setup h1 { margin: 12px 0 8px; }
@@ -553,12 +554,17 @@ dialog .error { padding: 0 16px; margin-top: 8px; }
 input[type="radio"] { -webkit-appearance: none; appearance: none; width: 20px; height: 16px; margin: 0; background: none; flex: none; }
 input[type="radio"]:checked { background: var(--check) center / 16px 14px no-repeat; }
 input[type="radio"]:focus-visible { outline-offset: 4px; }
+/* collega una banca: Annulla sparisce a lavoro finito ma tiene il posto (titolo centrato); indirizzo lungo = etichetta sopra, campo a tutta riga */
+#link-cancel[hidden] { display: block !important; visibility: hidden; }
+.form-group .field.stack { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 8px; }
+.form-group .field.stack > span { font-size: var(--f-foot); line-height: var(--l-foot); color: var(--ink-2); }
+.form-group .field.stack input { text-align: left; }
 .dialog-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
 .dialog-actions:not(:has(.btn:not([hidden]))) { display: none; }
 .dialog-actions .btn { width: 100%; background: var(--field); border-radius: var(--radius); }
 .dialog-actions .spacer { display: none; }
 .edit-extra { padding-block: 0; }
-.edit-extra .row-btn { min-height: 44px; border-top: 0.5px solid var(--sep); background: none; border-radius: 0; font-size: var(--f-body); }
+.edit-extra .row-btn { min-height: 44px; border-top: 0.5px solid var(--sep); background: none; border-radius: 0; font-size: var(--f-body); width: calc(100% + 2 * var(--pad)); margin-inline: calc(-1 * var(--pad)); padding-inline: var(--pad); }
 .edit-extra .row-btn:first-child, .edit-extra .field[hidden] + .row-btn { border-top: 0; }
 #cash-form, #trip-form { display: flex; flex-direction: column; }
 .segmented.tipo { margin-top: 12px; align-self: stretch; display: flex; }

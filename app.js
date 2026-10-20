@@ -1746,6 +1746,73 @@ function renderPlanned() {
           h("button", { class: "btn small-btn", type: "button", onclick: () => saveCash("elimina", p.id), text: "Segna come fatto" }))) : null)));
 }
 
+// ── collega una banca (solo Mac: la chiave di Enable Banking sta in ~/.config/conti) ─
+$("link-open").hidden = PHONE;
+async function openLink() {
+  $("link-steps").hidden = false;
+  $("link-done").hidden = true;
+  $("link-error").hidden = true;
+  $("link-cancel").hidden = false;
+  $("link-save").textContent = "Collega";
+  $("link-save").disabled = true;
+  $("link-address").value = "";
+  $("link-address").disabled = true;
+  const { ok, payload } = await api("/api/collega", { azione: "banche" });
+  if (!ok) return toast(payload.errore || "Non riuscito.");
+  $("link-bank").replaceChildren(...payload.banche.map((b) => h("option", { value: b.nome, text: b.nome })));
+  $("link-dialog").showModal();
+}
+function linkError(text) {
+  $("link-error").textContent = text;
+  $("link-error").hidden = !text;
+}
+$("link-open").addEventListener("click", openLink);
+$("link-cancel").addEventListener("click", () => $("link-dialog").close());
+$("link-dialog").addEventListener("close", () => $("link-done").replaceChildren());  // l'eventuale codice non resta nella pagina
+$("link-cp").addEventListener("click", () => api("/api/collega", { azione: "apri", dove: "control_panel" }));
+$("link-bank").addEventListener("change", () => {  // banca diversa: si riparte dal login
+  $("link-address").value = "";
+  $("link-address").disabled = $("link-save").disabled = true;
+});
+$("link-start").addEventListener("click", async () => {
+  linkError("");
+  $("link-start").disabled = true;
+  const { ok, payload } = await api("/api/collega", { azione: "avvia", banca: $("link-bank").value });
+  $("link-start").disabled = false;
+  if (!ok) return linkError(payload.errore || "Non riuscito.");
+  $("link-address").disabled = false;
+  $("link-save").disabled = false;
+  focusField($("link-address"));
+});
+$("link-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!$("link-done").hidden) return $("link-dialog").close();  // "Fine"
+  const address = $("link-address").value.trim();
+  if (!address) return linkError("Incolla l'indirizzo della pagina che non si carica.");
+  linkError("");
+  $("link-save").disabled = true;
+  const { ok, payload } = await api("/api/collega", { azione: "fine", indirizzo: address });
+  $("link-save").disabled = false;
+  if (!ok) return linkError(payload.errore || "Non riuscito.");
+  const r = payload;
+  const open = (dove, text) => h("button", { class: "btn row-btn", type: "button", text,
+    onclick: () => api("/api/collega", { azione: "apri", dove }) });
+  $("link-done").replaceChildren(
+    h("p", { class: "edit-desc" }, statusIcon("good", "✓"), " ", h("strong", { text: `${r.banca} collegata.` }),
+      ` ${r.conti} ${r.conti === 1 ? "conto" : "conti"}, consenso valido fino al ${fmtDate(r.fino_a)}.`),
+    r.copiato
+      ? h("p", { class: "hint", text: "Il codice del collegamento è già negli appunti (si cancella da solo tra 3 minuti): non serve vederlo." })
+      : h("label", { class: "field" }, h("span", { text: "Codice" }), h("input", { type: "text", readonly: "", value: r.session_id })),
+    h("p", { class: "hint", text: `3. Su GitHub apri «banking», poi la matita accanto a ${r.secret}: incolla (⌘V) e premi «Update secret».` }),
+    h("div", { class: "form-group edit-extra" }, open("secret", "Apri GitHub: secret della banca")),
+    h("p", { class: "hint", text: "4. Fai partire il sync: «Run workflow», poi di nuovo «Run workflow»." }),
+    h("div", { class: "form-group edit-extra" }, open("sync", "Apri GitHub: Sync spese")));
+  $("link-steps").hidden = true;
+  $("link-done").hidden = false;
+  $("link-cancel").hidden = true;
+  $("link-save").textContent = "Fine";
+});
+
 let toastTimer;
 function toast(text) {
   const el = $("toast");
