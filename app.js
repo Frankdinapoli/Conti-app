@@ -2,9 +2,12 @@
 /* Conti — dashboard. Tutto il testo dei movimenti è inserito con textContent (mai innerHTML). */
 
 const $ = (id) => document.getElementById(id);
-const EUR = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
-const EUR0 = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-const NUM = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+// useGrouping "always": 9.198,84 € come 14.047,50 € (in italiano Intl non separa le migliaia con 4 cifre)
+const EUR = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
+const EUR0 = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
+const NUM = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2, minimumFractionDigits: 2, useGrouping: "always" });
+// testi preparati da Python: importo e valuta (o %) restano sulla stessa riga
+const keepUnits = (s) => String(s ?? "").replace(/(\d) (€|DKK|NOK|USD|%)/g, "$1\u00a0$2");
 const fmt = (v) => (v == null ? "n/d" : EUR.format(v));
 const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
 const compact = (v) => {
@@ -650,7 +653,7 @@ function renderTips() {
     h("div", { class: "tip-main" },
       h("strong", { text: t.titolo }),
       t.risparmio ? h("span", { class: "tip-save", text: `≈ ${EUR0.format(t.risparmio)} al mese` }) : null,
-      h("p", { class: "tip-text", text: t.testo })),
+      h("p", { class: "tip-text", text: keepUnits(t.testo) })),
     h("button", { class: "btn ghost small-btn", type: "button", text: "Nascondi", title: "Non mostrarlo più questo mese",
       onclick: async (e) => {
         e.target.disabled = true;
@@ -819,7 +822,9 @@ function txRow(t, { pending = false } = {}) {
     h("span", { class: `tx-amount${!pending && t.eur > 0 ? " pos-amt" : ""}`, text: (t.eur > 0 || (pending && t.importo > 0) ? "+" : "") + money }),
     h("span", { class: "tx-meta" }, `${t.banca} · `,
       h("span", { class: `tx-cat ${pending ? "pending-tag" : t.gruppo}${!pending && (t.corretto || t.contanti) ? " learned" : ""}`, text: cat })),
-    t.valuta !== "EUR" && t.eur != null ? h("span", { class: "tx-orig", text: `${NUM.format(t.importo)} ${t.valuta}` }) : null);
+    // sotto l'importo in euro: quanto hai pagato nella valuta del negozio (es. DKK presi dal conto in EUR) o del conto
+    t.orig ? h("span", { class: "tx-orig", text: `${NUM.format(t.orig.importo)} ${t.orig.valuta}` })
+      : t.valuta !== "EUR" && t.eur != null ? h("span", { class: "tx-orig", text: `${NUM.format(t.importo)} ${t.valuta}` }) : null);
   if (open) {
     row.addEventListener("click", (e) => { if (!e.target.closest("button")) open(); });
     row.addEventListener("keydown", (e) => {
@@ -1015,18 +1020,16 @@ for (const b of $("view-switch").children) b.addEventListener("click", () => {
 $("tx-more").addEventListener("click", () => { state.showAll = true; renderTransactions(); });
 // Disposizione per tipo di schermo. Telefono/iPad/finestre strette: titolo grande e segmentato in cima alla pagina, sul telefono
 // i movimenti subito dopo il patrimonio. Mac (puntatore preciso, >= 641px): titolo del mese e segmentato Mese/Anno stanno nella
-// barra degli strumenti, e Impostazioni entra tra le schede a colonne (i Movimenti restano a tutta larghezza in fondo).
+// barra degli strumenti; i Movimenti stanno a tutta larghezza dopo le schede a colonne e Impostazioni in fondo.
 const macLayout = matchMedia("(min-width: 641px) and (not ((hover: none) and (pointer: coarse)))");
-const macWide = matchMedia("(min-width: 900px) and (not ((hover: none) and (pointer: coarse)))");
 function placeParts() {
   const bar = document.querySelector(".topbar-row");
   const dash = $("dashboard");
   if (macLayout.matches) {
     bar.insertBefore($("large-title"), $("nav-title"));
     bar.insertBefore($("view-switch"), document.querySelector(".top-actions"));
-    // Impostazioni tra le schede solo con le colonne (>= 900px); più stretto resta in fondo alla pagina
-    const wide = macWide.matches;
-    dash.querySelector(".grid").after(...(wide ? [$("settings")] : []), $("year-card"), $("tx-card"), ...(wide ? [] : [$("settings")]));
+    // Impostazioni sempre in fondo, dopo i Movimenti (con le colonne occupa la prima colonna)
+    dash.querySelector(".grid").after($("year-card"), $("tx-card"), $("settings"));
   } else {
     $("view-bar").append($("large-title"), $("view-switch"));
     if (PHONE) $("worth-card").after($("tx-card"));  // telefono: movimenti subito dopo il patrimonio
@@ -1035,7 +1038,6 @@ function placeParts() {
 }
 placeParts();
 macLayout.addEventListener("change", placeParts);
-macWide.addEventListener("change", placeParts);
 
 // barra delle schede (solo schermi stretti): il tocco scorre alla scheda, la voce attiva segue lo scorrimento
 const tabs = [...document.querySelectorAll("#tabbar .tab[data-target]")];
@@ -1118,7 +1120,8 @@ let editing = null;
 function openEdit(t) {
   editing = t;
   const generic = t.generico ?? GENERIC.has(t.descrizione);
-  $("edit-desc").replaceChildren(h("strong", { text: t.descrizione }), ` · ${fmtDate(t.data)} · ${fmt(t.eur)}`);
+  $("edit-desc").replaceChildren(h("strong", { text: t.descrizione }), ` · ${fmtDate(t.data)} · ${fmt(t.eur)}`
+    + (t.orig ? ` (${NUM.format(t.orig.importo)} ${t.orig.valuta})` : t.valuta !== "EUR" ? ` (${NUM.format(t.importo)} ${t.valuta})` : ""));
   $("cat-list").replaceChildren(...state.data.categorie_disponibili.map((c) => h("option", { value: c })));
   $("edit-cat").value = t.categoria;
   $("scope-merchant").textContent = t.simili > 1
@@ -1515,7 +1518,7 @@ function renderAlerts() {
   const byId = Object.fromEntries(state.data.movimenti.map((t) => [t.id, t]));
   $("alerts-body").replaceChildren(...list.map((a) => h("div", { class: "alert-row" },
     statusIcon(a.tipo === "mancanti" || a.tipo === "doppio" ? "critical" : "warning", "!"),
-    h("span", { class: "alert-text", text: a.testo }),
+    h("span", { class: "alert-text", text: keepUnits(a.testo) }),
     h("span", { class: "alert-actions" },
       a.movimenti.length && byId[a.movimenti.at(-1)] ? h("button", { class: "btn ghost small-btn", type: "button", text: "Vedi",
         onclick: () => openEdit(byId[a.movimenti.at(-1)]) }) : null,

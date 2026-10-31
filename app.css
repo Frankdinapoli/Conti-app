@@ -643,6 +643,7 @@ dialog .plan-sum div:last-child::after { display: none; }
 #wallet-body .internal-row.link { background: transparent var(--chev) no-repeat right var(--pad) center; background-size: 8px 14px; padding-right: calc(var(--pad) + 22px); }
 #wallet-body .internal-row.link:active { background-color: var(--fill-strong); }
 #wallet-body > p, #costs-body > .hint { padding: 12px 0; margin: 0; }
+#amex-body > p:last-child { padding-bottom: 12px; }  /* "Nessuno: …" non tocca il bordo del riquadro */
 .token-expiry { margin-top: 12px; }
 
 /* da controllare, consigli */
@@ -842,7 +843,7 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
   details.recon > .recon-summary::after { order: 3; }
   .foot > span, .foot > .link-btn { padding-block: 6px; }
   .internal-row.rec-row { grid-template-columns: minmax(0, 1fr) auto 80px; }
-  .rec-row small { display: inline; margin-left: 8px; }
+  .rec-row small { display: inline-block; max-width: 100%; margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }  /* "categoria · mensile" mai spezzato a metà */
   .rec-row span:nth-child(2) { grid-row: auto; grid-column: auto; font-size: var(--f-foot); text-align: right; }
   .rec-row span:nth-child(3) { grid-row: auto; grid-column: auto; align-self: center; }
   .internal-row.worth-part, #wallet-body .internal-row, .internal-row.cost-row { grid-template-columns: minmax(0, 1fr) auto; }
@@ -866,7 +867,9 @@ details.recon[open] > .recon-summary::after { transform: rotate(90deg); }
   .tile .value { font-size: 1.1333rem; line-height: 1.4667rem; }
   .chart { height: 190px; }
   .chart.short { height: 90px; }
-  .hbar { grid-template-columns: minmax(0, 160px) minmax(36px, 1fr) auto; gap: 12px; padding: 5px 0; }
+  /* colonna degli importi a larghezza fissa: le barre finiscono tutte allo stesso punto; il riflesso al passaggio
+     del mouse ha un po' di margine attorno al testo (margine negativo: il testo resta allineato alla scheda) */
+  .hbar { grid-template-columns: minmax(0, 160px) minmax(36px, 1fr) 11em; gap: 12px; padding: 5px 6px; margin-inline: -6px; }
   .hbar .name, .hbar .val, .hbar .track { grid-row: auto; grid-column: auto; }
   .hbar .name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
   .hbar .val { white-space: nowrap; }
