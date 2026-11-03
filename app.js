@@ -122,7 +122,8 @@ async function load(refresh = false) {
   }
   if (!ok) {
     $("error-text").textContent = payload.errore || "Impossibile leggere i dati.";
-    return show("error");
+    show("error");
+    return checkUpdate();  // anche con i dati che non si caricano l'app si può aggiornare
   }
   const keep = state.data ? current()?.key : null;
   if (!payload.mesi.length) {
@@ -140,23 +141,30 @@ async function load(refresh = false) {
 async function checkUpdate() {
   if (PHONE) return;
   const { ok, payload } = await api("/api/aggiornamento");
-  $("update-banner").hidden = !(ok && payload.stato === "disponibile");
+  const available = ok && payload.stato === "disponibile";
+  $("update-banner").hidden = !available;
+  $("error-update").hidden = $("error-update-text").hidden = !available;
 }
-$("update-btn").addEventListener("click", async () => {
-  const btn = $("update-btn");
+async function runUpdate(btn, text, onFail) {
   btn.disabled = true;
-  $("update-text").textContent = "Aggiornamento in corso: verifico e scarico la versione nuova…";
+  text.textContent = "Aggiornamento in corso: verifico e scarico la versione nuova…";
   const { ok, payload } = await api("/api/aggiorna", {});
   if (!ok) {
     btn.disabled = false;
-    $("update-banner").classList.add("critical");
-    $("update-text").textContent = `Aggiornamento non riuscito: ${payload.errore || "riprova più tardi"}.`;
+    onFail();
+    text.textContent = `Aggiornamento non riuscito: ${payload.errore || "riprova più tardi"}.`;
     return;
   }
   document.body.replaceChildren(h("main", {}, h("section", { class: "center-card" },
     h("div", { class: "card setup" }, h("h1", { text: "Conti è aggiornata ✓" }),
       h("p", { class: "muted", text: "Si riapre in una nuova finestra: questa si può chiudere." })))));
   setTimeout(() => window.close(), 2500);
+}
+$("update-btn").addEventListener("click", () =>
+  runUpdate($("update-btn"), $("update-text"), () => $("update-banner").classList.add("critical")));
+$("error-update").addEventListener("click", () => {
+  $("error-update-text").hidden = false;
+  runUpdate($("error-update"), $("error-update-text"), () => {});
 });
 
 function setData(payload, keepKey) {
@@ -1554,9 +1562,15 @@ function renderWorth() {
     title: b.vecchio ? `Ultimo saldo letto il ${fmtDate(b.data)}` : b.incompleto ? "Un conto in valuta senza tasso di cambio non è incluso" : null },
     h("span", { text: b.nome }), h("span", { class: "worth-val", text: fmt(b.eur) }),
     b.vecchio ? h("small", { class: "worth-old", text: `Ultimo saldo letto il ${fmtDate(b.data)}` }) : null));
+  // spese ed entrate arrivate dopo la lettura dei saldi (una volta per notte): stima, già nel totale
+  if (w.dopo_saldi) parts.push(h("div", { class: "internal-row worth-part", title: "Movimenti contabilizzati e in attesa arrivati dopo la lettura dei saldi" },
+    h("span", { text: `Movimenti dopo i saldi (${w.dopo_saldi.movimenti})` }),
+    h("span", { class: "worth-val", text: (w.dopo_saldi.eur > 0 ? "+" : "") + fmt(w.dopo_saldi.eur) })));
   if (w.contanti != null) parts.push(h("div", { class: "internal-row worth-part" }, h("span", { text: "Contanti" }), h("span", { class: "worth-val", text: fmt(w.contanti) })));
   $("worth-parts").replaceChildren(...parts);
-  const notes = [`Saldi disponibili del ${fmtDate(w.aggiornato)}, come nell'app della banca.`];
+  const notes = [w.dopo_saldi
+    ? `Saldi delle banche del ${fmtDate(w.aggiornato)} più i movimenti arrivati dopo: il totale di adesso è una stima, i saldi veri arrivano stanotte.`
+    : `Saldi disponibili del ${fmtDate(w.aggiornato)}, come nell'app della banca.`];
   if (w.con_previsti != null) notes.push(`Con i previsti: ${fmt(w.con_previsti)}.`);
   $("worth-note").textContent = notes.join(" ");
 
@@ -1800,9 +1814,15 @@ $("link-form").addEventListener("submit", async (e) => {
   const r = payload;
   const open = (dove, text) => h("button", { class: "btn row-btn", type: "button", text,
     onclick: () => api("/api/collega", { azione: "apri", dove }) });
-  $("link-done").replaceChildren(
-    h("p", { class: "edit-desc" }, statusIcon("good", "✓"), " ", h("strong", { text: `${r.banca} collegata.` }),
-      ` ${r.conti} ${r.conti === 1 ? "conto" : "conti"}, consenso valido fino al ${fmtDate(r.fino_a)}.`),
+  const head = h("p", { class: "edit-desc" }, statusIcon("good", "✓"), " ", h("strong", { text: `${r.banca} collegata.` }),
+    ` ${r.conti} ${r.conti === 1 ? "conto" : "conti"}, consenso valido fino al ${fmtDate(r.fino_a)}.`);
+  if (r.salvato) {  // codice cifrato salvato su GitHub: il sync lo usa da solo, niente da incollare
+    $("link-done").replaceChildren(head,
+      h("p", { class: "hint", text: "Fatto: il collegamento è salvato (cifrato) e il prossimo sync lo usa da solo. Non devi incollare niente su GitHub." }),
+      h("p", { class: "hint", text: "Vuoi i movimenti subito? Apri Sync spese, premi «Run workflow» e poi di nuovo il pulsante verde «Run workflow»." }),
+      h("div", { class: "form-group edit-extra" }, open("sync", "Apri GitHub: Sync spese")));
+  } else $("link-done").replaceChildren(head,
+    h("p", { class: "hint", text: "Non sono riuscito a salvarlo su GitHub (serve il token con scrittura): copialo a mano." }),
     r.copiato
       ? h("p", { class: "hint", text: "Il codice del collegamento è già negli appunti (si cancella da solo tra 3 minuti): non serve vederlo." })
       : h("label", { class: "field" }, h("span", { text: "Codice" }), h("input", { type: "text", readonly: "", value: r.session_id })),
