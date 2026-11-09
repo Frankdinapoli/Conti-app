@@ -613,7 +613,7 @@ function reconLine(x) {
     ok: `I movimenti scaricati spiegano il saldo della banca, ${period}.`,
     diff: `Differenza di ${money(Math.abs(x.differenza), x.valuta)} ${period}: probabilmente un movimento non è arrivato o è doppio.`,
     verifica: `Differenza di ${money(Math.abs(x.differenza), x.valuta)} negli ultimi giorni: forse movimenti ancora in arrivo, si ricontrolla da sola.`,
-    attesa: "Serve un secondo saldo: il prossimo arriva con il sync di stanotte.",
+    attesa: "Serve un secondo saldo: il prossimo arriva con il sync del mattino.",
   };
   const summary = h("summary", { class: "recon-summary" },
     statusIcon(color, icon),
@@ -632,7 +632,7 @@ function renderRecon(m) {
   const body = $("recon-body");
   if (!state.data.quadratura_attiva) {
     $("recon-sub").textContent = "Saldo della banca = saldo iniziale + movimenti scaricati";
-    return body.replaceChildren(h("p", { class: "empty", text: "Parte con il sync di stanotte: servono due saldi per ogni valuta, quindi i primi risultati arrivano tra due notti." }));
+    return body.replaceChildren(h("p", { class: "empty", text: "Parte con il sync del mattino: servono due saldi per ogni valuta, quindi i primi risultati arrivano tra due giorni." }));
   }
   const lines = m.year ? m.months.flatMap((x) => (x.quadratura || []).map((l) => ({ ...l, mese: x.short }))) : m.quadratura || [];
   const bad = lines.filter((l) => l.stato === "diff").length;
@@ -1562,14 +1562,14 @@ function renderWorth() {
     title: b.vecchio ? `Ultimo saldo letto il ${fmtDate(b.data)}` : b.incompleto ? "Un conto in valuta senza tasso di cambio non è incluso" : null },
     h("span", { text: b.nome }), h("span", { class: "worth-val", text: fmt(b.eur) }),
     b.vecchio ? h("small", { class: "worth-old", text: `Ultimo saldo letto il ${fmtDate(b.data)}` }) : null));
-  // spese ed entrate arrivate dopo la lettura dei saldi (una volta per notte): stima, già nel totale
+  // spese ed entrate arrivate dopo l'ultima lettura dei saldi: stima, già nel totale
   if (w.dopo_saldi) parts.push(h("div", { class: "internal-row worth-part", title: "Movimenti contabilizzati e in attesa arrivati dopo la lettura dei saldi" },
     h("span", { text: `Movimenti dopo i saldi (${w.dopo_saldi.movimenti})` }),
     h("span", { class: "worth-val", text: (w.dopo_saldi.eur > 0 ? "+" : "") + fmt(w.dopo_saldi.eur) })));
   if (w.contanti != null) parts.push(h("div", { class: "internal-row worth-part" }, h("span", { text: "Contanti" }), h("span", { class: "worth-val", text: fmt(w.contanti) })));
   $("worth-parts").replaceChildren(...parts);
   const notes = [w.dopo_saldi
-    ? `Saldi delle banche del ${fmtDate(w.aggiornato)} più i movimenti arrivati dopo: il totale di adesso è una stima, i saldi veri arrivano stanotte.`
+    ? `Saldi delle banche del ${fmtDate(w.aggiornato)} più i movimenti arrivati dopo: il totale di adesso è una stima, i saldi veri arrivano col prossimo sync.`
     : `Saldi disponibili del ${fmtDate(w.aggiornato)}, come nell'app della banca.`];
   if (w.con_previsti != null) notes.push(`Con i previsti: ${fmt(w.con_previsti)}.`);
   $("worth-note").textContent = notes.join(" ");
