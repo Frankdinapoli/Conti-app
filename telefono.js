@@ -182,7 +182,7 @@
     if (!["esercente", "movimento", "ripristina"].includes(scope)) return reply(400, { errore: "richiesta non valida" });
     // Validazione sui dati letti da GitHub, mai su quello che arriva dalla pagina.
     const tx = snapshot?.movimenti.find((t) => t.id === String(body.id || ""));
-    if (!tx || tx.contanti) return reply(400, { errore: "movimento non trovato" });
+    if (!tx || tx.contanti || tx.virtuale) return reply(400, { errore: "movimento non trovato" });  // come il Mac
     const category = clean(body.categoria, 60);
     if (scope !== "ripristina" && !CATEGORY_RE.test(category)) return reply(400, { errore: "nome di categoria non valido" });
     const merchant = scope === "esercente" && !tx.generico;
@@ -308,7 +308,7 @@
         descrizione: desc,
         importo: signed,
         valuta: currency,
-        eur: currency === "EUR" ? signed : null,  // le altre valute le converte il sync notturno (BCE)
+        eur: currency === "EUR" ? signed : null,  // le altre valute le converte il prossimo sync (BCE)
         categoria: category,
       };
       message = id ? "Contanti: modificato un movimento (app)" : "Contanti: nuovo movimento (app)";
@@ -336,7 +336,9 @@
       const amount = Number(entry.importo);
       d.movimenti.push({
         data: entry.data, banca: "Contanti", descrizione: entry.descrizione, importo: amount, valuta: entry.valuta,
-        eur: entry.eur == null ? null : amount, categoria: entry.categoria, gruppo: amount < 0 ? "spesa" : "entrata",
+        eur: entry.eur == null ? null : amount, categoria: entry.categoria,
+        // come group_of in app/data.py: entrata solo nella categoria delle entrate (il resto lo sistema l'export)
+        gruppo: amount > 0 && entry.categoria === "Entrate" ? "entrata" : "spesa",
         id: entry.id, contanti: "manuale", corretto: null, simili: 1, chiave: "", generico: false,
       });
       // stesso ordine dell'app del Mac: data e descrizione, dal più recente
@@ -656,7 +658,8 @@
 
   async function setToken(body) {
     const candidate = String(body.token || "").trim();
-    if (!candidate || candidate.length > 400 || /\s/.test(candidate)) return reply(400, { errore: "token non valido" });
+    // solo lettere, cifre e "_" (i token di GitHub): mai caratteri strani in un'intestazione HTTP
+    if (!/^[A-Za-z0-9_]{1,400}$/.test(candidate)) return reply(400, { errore: "Il token non è valido: ricopialo per intero, senza spazi." });
     const r = await gh(`/repos/${REPO}`, { token: candidate });
     if (r.status === 401) return reply(400, { errore: "GitHub non riconosce questo token: ricopialo per intero." });
     if (r.status === 403 || r.status === 404) return reply(400, { errore: "Il token non vede il repository Conti: in «Repository access» scegli Conti." });

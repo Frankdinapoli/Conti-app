@@ -41,6 +41,12 @@ function buildYears(mesi) {
     }
     return [...out.values()];
   };
+  // portafoglio dell'anno: prelevato e speso = somma dei mesi, saldo (e partenza) dell'ultimo mese
+  const wallets = (arr) => {
+    const ws = arr.filter((m) => m.portafoglio).map((m) => m.portafoglio);
+    if (!ws.length) return null;
+    return { ...ws[ws.length - 1], prelevato: ws.reduce((a, w) => a + (w.prelevato || 0), 0), speso: ws.reduce((a, w) => a + (w.speso || 0), 0) };
+  };
   const thisYear = String(new Date().getFullYear());
   return [...byYear.entries()].map(([y, ms]) => ({
     key: y, label: `Anno ${y}`, short: y, year: true, months: ms,
@@ -51,7 +57,7 @@ function buildYears(mesi) {
     categorie: merge(ms, "categorie", ["speso", "n"]).sort((a, b) => b.speso - a.speso),
     interni: merge(ms, "interni", ["entrati", "usciti"]),
     budget: [],
-    portafoglio: [...ms].reverse().find((m) => m.portafoglio)?.portafoglio ?? null,
+    portafoglio: wallets(ms),
     costi: Object.fromEntries(["cambi", "commissioni", "totale"].map((k) => [k, ms.reduce((a, m) => a + (m.costi?.[k] || 0), 0)])),
   })).map((y) => ({ ...y, risparmio: y.entrate > 0 ? (y.saldo / y.entrate) * 100 : null }));
 }
@@ -230,8 +236,10 @@ function render() {
     if (b.esito !== "ok") { urgent = true; notes.unshift(`${b.nome}: ${b.esito}. Controlla STATO.md su GitHub.`); }
     else if (days != null && days <= 14) {
       urgent ||= days <= 7;  // rosso come il chip solo nell'ultima settimana
-      notes.unshift(`Il consenso ${b.nome} scade tra ${Math.max(days, 0)} giorni: va rinnovato (scripts/link_account.py, poi aggiorna il secret).`);
+      notes.unshift(`Il consenso ${b.nome} scade tra ${Math.max(days, 0)} giorni: va ricollegata dall'app del Mac: Impostazioni → «Collega o ricollega una banca».`);
     }
+    const lag = b.esito === "ok" ? bankLag(b, today0) : null;
+    if (lag) notes.unshift(`${lag}: i suoi ultimi movimenti potrebbero mancare.`);
   }
   const stale = staleDays();
   if (stale != null) notes.unshift(`Il sync automatico non gira da ${stale} giorni: i dati potrebbero non essere aggiornati. Controlla Actions → Sync spese su GitHub (o STATO.md).`);
@@ -882,6 +890,17 @@ function staleDays() {
   return hours > 48 ? Math.floor(hours / 24) : null;
 }
 
+// Banca non letta da più di 2 giorni (`notte` = ultimo giro riuscito) o con conti non letti: testo dell'avviso.
+function bankLag(b, today) {
+  const st = state.data?.stato || {};
+  const night = typeof st.notte === "string" ? st.notte : st.notte?.[b.nome];
+  if (night && /^\d{4}-\d{2}-\d{2}$/.test(night) && Math.round((today - new Date(`${night}T00:00:00`)) / 864e5) > 2) {
+    return `${b.nome} non letta dal ${night.slice(8, 10)}/${night.slice(5, 7)}`;
+  }
+  if (b.conti_non_letti > 0) return `${b.nome}: ${b.conti_non_letti} ${b.conti_non_letti === 1 ? "conto non letto" : "conti non letti"}`;
+  return null;
+}
+
 function renderStatus() {
   const st = state.data.stato;
   const chip = $("status-chip");
@@ -898,6 +917,10 @@ function renderStatus() {
         worst = { level: days <= 7 ? "critical" : days <= 14 ? "warning" : "good", days, text: `Consensi ok · ${days} giorni` };
         if (days <= 14) worst.text = `Rinnova il consenso ${b.nome}: ${days} giorni`;
       }
+    }
+    for (const b of banks) {  // banca ferma o conti non letti: avviso come un consenso in scadenza
+      const lag = b.esito === "ok" ? bankLag(b, today) : null;
+      if (lag && (!worst || worst.level === "good")) worst = { level: "warning", text: lag };
     }
     const stale = staleDays();
     if (stale != null) worst = { level: "critical", text: `Sync fermo da ${stale} giorni` };
@@ -1189,7 +1212,7 @@ $("edit-advance").addEventListener("click", () => {
   $("cash-form").elements.tipo.value = "entrata";
   $("cash-currency").value = t.valuta;
   $("cash-desc").value = `Rimborso da …: ${t.descrizione}`.slice(0, 80);
-  $("cash-date").value = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  $("cash-date").value = isoLocal(new Date(Date.now() + 14 * 864e5));
   $("cash-hint").textContent = "Scrivi al posto dei puntini chi ti deve i soldi e quanto. Lo trovi tra i Previsti: quando arriva il rimborso, l'app lo abbina.";
   focusField($("cash-amount"));
 });
@@ -1323,7 +1346,7 @@ function splitSection(v) {
   mine.addEventListener("input", recalc);
   create.addEventListener("click", async () => {
     create.disabled = true;
-    const when = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+    const when = isoLocal(new Date(Date.now() + 14 * 864e5));
     let res = null;
     for (const p of plan) {
       res = await api("/api/previsti", { azione: "salva", tipo: p.saldo > 0 ? "entrata" : "spesa", data: when,
@@ -1417,7 +1440,7 @@ function openPlan(id) {
   cashEditing = e ? id : null;
   $("cash-title").textContent = e ? "Modifica previsto" : "Nuovo previsto";
   $("cash-form").elements.tipo.value = e && e.importo > 0 ? "entrata" : "spesa";
-  $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
+  $("cash-date").value = e ? e.data : isoLocal(new Date());
   $("cash-amount").value = e ? Math.abs(e.importo).toFixed(2).replace(".", ",") : "";
   $("cash-currency").value = e ? e.valuta : "EUR";
   $("cash-desc").value = e ? e.descrizione : "";
@@ -1431,7 +1454,7 @@ function openInitial(id) {
   setEntryMode("iniziale");
   cashEditing = e ? id : null;
   $("cash-title").textContent = "Contante che hai già";
-  $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
+  $("cash-date").value = e ? e.data : isoLocal(new Date());
   $("cash-amount").value = e ? Number(e.importo).toFixed(2).replace(".", ",") : "";
   $("cash-currency").value = e ? e.valuta : "EUR";
   $("cash-delete").hidden = !e;
@@ -1446,7 +1469,7 @@ function openCash(id) {
   $("cash-title").textContent = e ? "Modifica contanti" : "Registra contanti";
   const amount = e ? Number(e.importo) : 0;
   $("cash-form").elements.tipo.value = amount > 0 ? "entrata" : "spesa";
-  $("cash-date").value = e ? e.data : new Date().toISOString().slice(0, 10);
+  $("cash-date").value = e ? e.data : isoLocal(new Date());
   $("cash-amount").value = e ? Math.abs(amount).toFixed(2).replace(".", ",") : "";
   let lastCurrency = "EUR";
   try { lastCurrency = localStorage.getItem("conti-valuta") || "EUR"; } catch { /* opzionale */ }
@@ -1652,7 +1675,7 @@ function openAmexEntry(mode, id) {
   cashEditing = e ? id : null;
   $("cash-title").textContent = mode === "amexsub" ? (e ? "Abbonamento sulla Amex" : "Nuovo abbonamento sulla Amex") : (e ? "Spesa Amex" : "Nuova spesa Amex");
   $("cash-form").elements.tipo.value = e?.frequenza === "annuale" ? "entrata" : "spesa";
-  $("cash-date").value = e ? (e.data || e.dal) : new Date().toISOString().slice(0, 10);
+  $("cash-date").value = e ? (e.data || e.dal) : isoLocal(new Date());
   $("cash-amount").value = e ? Number(e.importo).toFixed(2).replace(".", ",") : "";
   $("cash-desc").value = e ? (e.descrizione || e.nome) : "";
   $("cash-delete").hidden = !e;
