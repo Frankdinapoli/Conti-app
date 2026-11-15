@@ -498,6 +498,15 @@ function goalStatus(color, icon, title, text) {
   return h("p", { class: "goal-status" }, statusIcon(color, icon),
     h("span", {}, h("strong", { text: `${title}. ` }), text));
 }
+// Messo da parte diviso tra soldi rimasti sui conti e versati agli investimenti (richiesta dell'utente 15/11/2026).
+// Investiti = versamenti netti verso gli investimenti nei mesi dati (categoria interna "Investimenti").
+function goalSplit(months, saved) {
+  const invested = months.reduce((a, x) => a + (x.interni || []).filter((i) => i.nome === "Investimenti")
+    .reduce((b, i) => b + i.usciti - i.entrati, 0), 0);
+  if (Math.abs(invested) < 0.005) return null;
+  const part = (label, value) => h("span", { class: "goal-part" }, h("span", { class: "muted", text: label }), h("strong", { text: fmt(value) }));
+  return h("div", { class: "goal-split" }, part("Sui conti", saved - invested), part(invested > 0 ? "Investiti" : "Ritirati dagli investimenti", Math.abs(invested)));
+}
 function renderGoal(m) {
   const info = state.data.obiettivo;
   const card = $("goal-card");
@@ -528,6 +537,7 @@ function renderGoal(m) {
       h("div", { class: "goal-head" }, h("span", { class: "muted small", text: "Messo da parte nei mesi chiusi" }),
         h("strong", { class: "goal-value", text: fmt(saved) }), h("span", { class: "muted", text: `su ${EUR0.format(goal)}${goal > 0 ? ` · ${Math.max(0, Math.round(saved / goal * 100))}%` : ""}` })),
       goalBar(saved, goal, saved >= goal ? "good" : "accent"),
+      ...[goalSplit(months, saved)].filter(Boolean),
       chips,
       h("p", { class: "muted small", text: `Obiettivo raggiunto in ${hit} ${hit === 1 ? "mese" : "mesi"} su ${months.length}.` }));
   }
@@ -564,6 +574,7 @@ function renderGoal(m) {
     h("div", { class: "goal-head" }, h("span", { class: "muted small", text: m.in_progress ? "Messo da parte finora" : "Messo da parte" }),
       h("strong", { class: "goal-value", text: fmt(g.messo_da_parte) }), h("span", { class: "muted", text: `su ${EUR0.format(g.importo)} · ${Math.max(0, Math.round(g.messo_da_parte / g.importo * 100))}%` })),
     goalBar(g.messo_da_parte, g.importo, g.stato === "raggiunto" || over ? "good" : g.stato === "mancato" ? "critical" : "accent"),
+    ...[goalSplit([m], g.messo_da_parte)].filter(Boolean),
     ...rows);
 }
 function openGoal() {
