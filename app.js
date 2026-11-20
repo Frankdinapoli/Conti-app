@@ -1608,50 +1608,142 @@ function renderWorth() {
   if (w.con_previsti != null) notes.push(`Con i previsti: ${fmt(w.con_previsti)}.`);
   $("worth-note").textContent = notes.join(" ");
 
-  const box = $("worth-chart");
-  const pts = w.storico;
+  renderDaily();
+  renderWorthChart(w);
+}
+
+// Grafico del patrimonio (20/11/2026): "Mese" (o "Anno" nella vista Anno) = solo il periodo che stai
+// guardando, dal primo giorno (richiesta dell'utente: guardando novembre ottobre non serve), oppure "Tutto";
+// variazione nel periodo sotto il totale, riempimento sfumato, valori a destra, linea tratteggiata al valore
+// di partenza e dito sul grafico (o mouse) che mostra valore e data nel titolo, come Borsa di iOS.
+const worthDay = (p) => Date.parse(p.data + "T12:00");
+function worthChange(first, p) {
+  const d = p.totale - first.totale, pct = first.totale ? (d / Math.abs(first.totale)) * 100 : null;
+  const sign = d > 0.005 ? "+" : d < -0.005 ? "−" : "";
+  return { text: `${sign}${fmt(Math.abs(d))}` + (pct != null ? ` (${sign}${Math.abs(pct).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%)` : ""),
+    cls: d > 0.005 ? "up" : d < -0.005 ? "down" : "" };
+}
+// Punti del periodo `prefix` ("2026-11" o "2026"): il saldo di partenza è l'ultimo letto prima del periodo,
+// messo al primo giorno (la lettura delle 23:53 dell'ultimo giorno = il saldo a inizio periodo).
+function worthPeriod(all, prefix) {
+  const inside = all.filter((p) => p.data.startsWith(prefix));
+  const start = prefix.length === 4 ? `${prefix}-01-01` : `${prefix}-01`;
+  const before = all.filter((p) => p.data < start).at(-1);
+  if (before && inside[0]?.data !== start) inside.unshift({ data: start, totale: before.totale, inizio: true });
+  return inside;
+}
+function renderWorthChart(w) {
+  const box = $("worth-chart"), all = w.storico, seg = $("worth-range");
+  const m = current();
+  const prefix = m.year ? String(m.year) : m.key;
+  const unit = m.year ? "anno" : "mese";
+  const period = worthPeriod(all, prefix);
+  if (state.worthRange !== "tutto") state.worthRange = "periodo";
+  seg.hidden = all.length < 2;
+  seg.replaceChildren(...[["periodo", m.year ? "Anno" : "Mese"], ["tutto", "Tutto"]].map(([k, label]) =>
+    h("button", { role: "tab", type: "button", "aria-selected": String(k === state.worthRange), text: label,
+      onclick: () => { state.worthRange = k; renderWorthChart(w); } })));
+  const pts = state.worthRange === "tutto" ? all : period;
   box.classList.toggle("waiting", pts.length < 2);
   if (pts.length < 2) {
-    return box.replaceChildren(h("p", { class: "empty small", text: "L'andamento si riempie giorno dopo giorno, a ogni sync." }));
+    $("worth-total").textContent = fmt(w.totale); $("worth-label").textContent = "Oggi · conti + contanti";
+    $("worth-change").textContent = "";
+    return box.replaceChildren(h("p", { class: "empty small", text: all.length < 2
+      ? "L'andamento si riempie giorno dopo giorno, a ogni sync."
+      : `Ancora pochi saldi per questo ${unit}: l'andamento si riempie a ogni sync.` }));
   }
-  const W = box.clientWidth || 420, H = box.clientHeight || 150;
-  const pad = { l: 44, r: 8, t: 10, b: 22 };
+  const first = pts[0];
+  const since = state.worthRange === "tutto"
+    ? `da ${new Date(worthDay(first)).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}`
+    : pts.at(-1).oggi ? `da inizio ${unit}` : `nel ${unit}`;
+  const showHead = (i) => {
+    const p = pts[i], c = worthChange(first, p), now = i === pts.length - 1 && p.oggi;
+    $("worth-total").textContent = fmt(now ? w.totale : p.totale);
+    $("worth-label").textContent = now ? "Oggi · conti + contanti" : p.inizio ? `Inizio ${unit} · ${fmtDate(p.data)}` : fmtDate(p.data);
+    const el = $("worth-change");
+    el.className = `worth-change ${c.cls}`;
+    el.replaceChildren(h("strong", { text: c.text }), ` ${since}`);
+  };
+  showHead(pts.length - 1);
+
+  const W = box.clientWidth || 420, H = box.clientHeight || 170;
+  const pad = { l: 2, r: 46, t: 12, b: 24 };
   const vals = pts.map((p) => p.totale);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   const span = Math.max(hi - lo, Math.abs(hi) * 0.02, 10);
-  lo -= span * 0.15; hi += span * 0.15;
-  // asse del tempo vero: un giorno senza sync resta un buco, non viene schiacciato
-  const day = (p) => Date.parse(p.data + "T12:00");
-  const t0 = day(pts[0]), t1 = Math.max(day(pts.at(-1)), t0 + 864e5);
+  lo -= span * 0.12; hi += span * 0.12;
+  const t0 = worthDay(first), t1 = Math.max(worthDay(pts.at(-1)), t0 + 864e5);
   const xt = (t) => pad.l + ((t - t0) / (t1 - t0)) * (W - pad.l - pad.r);
-  const x = (i) => xt(day(pts[i]));
+  const x = (i) => xt(worthDay(pts[i]));
   const y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
   const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.totale).toFixed(1)}`).join("");
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Andamento del patrimonio" });
-  for (const v of [lo + (hi - lo) * 0.15, hi - (hi - lo) * 0.15]) {
+  const color = css("--series-1");
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Andamento del patrimonio ${since}` });
+  const grad = s("linearGradient", { id: "worth-grad", x1: 0, x2: 0, y1: 0, y2: 1 },
+    s("stop", { offset: "0%", "stop-color": color, "stop-opacity": "0.28" }),
+    s("stop", { offset: "100%", "stop-color": color, "stop-opacity": "0" }));
+  svg.append(s("defs", {}, grad));
+  for (const v of [lo + (hi - lo) * 0.12, (lo + hi) / 2, hi - (hi - lo) * 0.12]) {
     svg.append(s("line", { class: "gridline", x1: pad.l, x2: W - pad.r, y1: y(v), y2: y(v) }),
-      s("text", { x: pad.l - 8, y: y(v) + 4, "text-anchor": "end" }, compact(v)));
+      s("text", { x: W - pad.r + 8, y: y(v) + 4, "text-anchor": "start" }, compact(v)));
   }
   svg.append(
-    s("path", { d: `${line}L${x(pts.length - 1)},${H - pad.b}L${pad.l},${H - pad.b}Z`, fill: css("--series-1"), opacity: "0.12" }),
-    s("path", { d: line, fill: "none", stroke: css("--series-1"), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }),
-    s("circle", { cx: x(pts.length - 1), cy: y(vals.at(-1)), r: 3.5, fill: css("--series-1") }),
-    ...worthTicks(t0, t1, W).map((t, i, all) => s("text", { x: xt(t), y: H - 6,
-      "text-anchor": i === 0 ? "start" : i === all.length - 1 ? "end" : "middle" },
-      new Date(t).toLocaleDateString("it-IT", { day: "numeric", month: "short" }))));  // ora locale, come t
-  const hit = s("rect", { class: "hit", x: pad.l, y: 0, width: W - pad.l - pad.r, height: H });
-  let hover = null;
-  hit.addEventListener("mousemove", (e) => {
+    s("line", { class: "ref", x1: pad.l, x2: W - pad.r, y1: y(first.totale), y2: y(first.totale) }),
+    s("path", { d: `${line}L${x(pts.length - 1)},${H - pad.b}L${x(0)},${H - pad.b}Z`, fill: "url(#worth-grad)" }),
+    s("path", { d: line, fill: "none", stroke: color, "stroke-width": 2.25, "stroke-linejoin": "round", "stroke-linecap": "round" }),
+    ...worthTicks(t0, t1, W - pad.r).map((t, i, ticks) => s("text", { x: xt(t), y: H - 6,
+      "text-anchor": i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle" },
+      new Date(t).toLocaleDateString("it-IT", { day: "numeric", month: "short" }))));
+  const cursor = s("line", { class: "cursor", x1: 0, x2: 0, y1: pad.t - 6, y2: H - pad.b, visibility: "hidden" });
+  const halo = s("circle", { r: 7, fill: color, opacity: "0.2" });
+  const dot = s("circle", { r: 4, fill: color, class: "worth-dot" });
+  const place = (i) => {
+    const cx = x(i), cy = y(pts[i].totale);
+    for (const c of [halo, dot]) { c.setAttribute("cx", cx); c.setAttribute("cy", cy); }
+    cursor.setAttribute("x1", cx); cursor.setAttribute("x2", cx);
+  };
+  place(pts.length - 1);
+  const hit = s("rect", { class: "hit worth-hit", x: 0, y: 0, width: W, height: H });
+  const nearest = (e) => {
     const r = hit.getBoundingClientRect();
-    const t = t0 + ((e.clientX - r.left) / r.width) * (t1 - t0);
-    hover = pts.reduce((best, p, i) => (Math.abs(day(p) - t) < Math.abs(day(pts[best]) - t) ? i : best), 0);
-  });
-  tip(hit, () => {
-    const p = pts[Math.max(0, Math.min(pts.length - 1, hover ?? pts.length - 1))];
-    return [p.oggi ? `${fmtDate(p.data)} · adesso` : fmtDate(p.data), [["Patrimonio", fmt(p.totale), css("--series-1")]]];
-  });
-  svg.append(hit);
+    const t = t0 + (((e.clientX - r.left) / r.width) * W - pad.l) / (W - pad.l - pad.r) * (t1 - t0);
+    return pts.reduce((best, p, i) => (Math.abs(worthDay(p) - t) < Math.abs(worthDay(pts[best]) - t) ? i : best), 0);
+  };
+  const move = (e) => { const i = nearest(e); cursor.setAttribute("visibility", "visible"); place(i); showHead(i); };
+  const leave = () => { cursor.setAttribute("visibility", "hidden"); place(pts.length - 1); showHead(pts.length - 1); };
+  hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointermove", move);
+  for (const ev of ["pointerleave", "pointerup", "pointercancel"]) hit.addEventListener(ev, leave);
+  svg.append(cursor, halo, dot, hit);
   box.replaceChildren(svg);
+}
+
+// Quanto si può spendere al giorno fino a fine mese restando nei budget (richiesta dell'utente 20/11/2026):
+// budget del mese in corso − speso − spese fisse ancora in arrivo (affitto, abbonamenti, addebito Amex),
+// diviso per i giorni rimasti compreso oggi. Solo da mostrare.
+function renderDaily() {
+  const box = $("daily"), note = $("daily-note");
+  const now = new Date();
+  const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const m = (state.data.mesi || []).find((x) => x.in_progress && x.key === key);  // dati di un mese passato: niente
+  const list = (m?.budget || []).filter((b) => b.budget > 0);
+  box.hidden = note.hidden = !list.length;
+  if (!list.length) return;
+  const sum = (k) => list.reduce((a, b) => a + (Number(b[k]) || 0), 0);
+  const total = sum("budget"), spent = sum("speso"), coming = sum("in_arrivo");
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const days = end.getDate() - now.getDate() + 1;
+  const left = total - spent - coming;
+  const per = left > 0 ? left / days : 0;
+  box.replaceChildren(h("div", { class: "internal-row daily-row" },
+    h("span", { text: "Puoi spendere al giorno" }),
+    h("strong", { class: left > 0 ? "daily-val" : "daily-val over", text: left > 0 ? `${EUR0.format(Math.floor(per))}` : "0 €" })));
+  const month = now.toLocaleDateString("it-IT", { month: "long" });
+  note.textContent = left > 0
+    ? `Per restare nei budget di ${month}: ${fmt(left)} per ${days === 1 ? "oggi" : `${days} giorni`}`
+      + (coming > 0.005 ? `, già tolti ${fmt(coming)} di spese fisse in arrivo.` : ".")
+    : `Budget di ${month} già usati` + (coming > 0.005 ? `, contando ${fmt(coming)} di spese fisse in arrivo` : "")
+      + `: oltre di ${fmt(-left)}.`;
 }
 
 // ── American Express: dettaglio degli addebiti ──────────────────────────

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
-  <meta name="conti-versione" content="145943236ca8">
+  <meta name="conti-versione" content="fb960cc8df36">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <title>Conti</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="app.css?v=11513aa6e3">
+  <link rel="stylesheet" href="app.css?v=6c93595e02">
 </head>
 <body>
   <header class="topbar" id="topbar">
@@ -111,15 +111,19 @@
         </header>
         <div class="group worth-group">
           <div class="worth-main">
-            <span class="muted small">Oggi · conti + contanti</span>
+            <span class="muted small" id="worth-label">Oggi · conti + contanti</span>
             <strong class="worth-total" id="worth-total"></strong>
+            <span class="worth-change" id="worth-change"></span>
           </div>
           <div class="worth-side">
             <div class="chart worth-chart" id="worth-chart"></div>
+            <div class="segmented worth-range" id="worth-range" role="tablist" aria-label="Periodo del grafico"></div>
           </div>
         </div>
         <div class="group worth-parts" id="worth-parts"></div>
         <p class="muted small section-foot" id="worth-note"></p>
+        <div class="group daily" id="daily" hidden></div>
+        <p class="muted small section-foot" id="daily-note" hidden></p>
       </section>
 
       <section class="card alerts" id="alerts-card" hidden>
@@ -495,7 +499,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="telefono.js?v=4ff30a9cc6"></script>
-  <script src="app.js?v=202232dbc5"></script>
+  <script src="telefono.js?v=f782223574"></script>
+  <script src="app.js?v=2ab817b181"></script>
 </body>
 </html>

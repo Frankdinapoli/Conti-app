@@ -304,10 +304,23 @@ main { max-width: 1320px; margin: 0 auto; padding: calc(var(--topbar-h, 96px) + 
 .worth-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-block: 14px 10px; }
 .worth-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .worth-total { font-size: var(--f-large); line-height: var(--l-large); font-weight: 700; }
-.worth-chart { height: 120px; margin-top: 8px; }
+.worth-chart { height: 170px; margin-top: 8px; }
 .worth-chart.waiting { height: auto; }
 .internal-row.worth-part { grid-template-columns: minmax(0, 1fr) auto; font-size: var(--f-body); line-height: var(--l-body); row-gap: 0; }
 .worth-part .worth-val { color: var(--ink-2); }
+.worth-change { font-size: var(--f-sub); line-height: var(--l-sub); color: var(--muted); font-variant-numeric: tabular-nums; }
+.worth-change strong { font-weight: 600; color: var(--ink-2); }
+.worth-change.up strong { color: var(--good-text); }
+.worth-change.down strong { color: var(--critical-text); }
+.worth-chart .ref { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .6; }
+.worth-chart .cursor { stroke: var(--ink-2); stroke-width: 1; }
+.worth-chart .worth-hit { touch-action: pan-y; cursor: crosshair; }
+.worth-range { display: flex; margin-top: 10px; }
+.worth-range button { flex: 1; }
+.internal-row.daily-row { grid-template-columns: minmax(0, 1fr) auto; font-size: var(--f-body); line-height: var(--l-body); align-items: baseline; }
+.daily-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.daily-val.over { color: var(--critical-text); }
+#daily { margin-top: 16px; }
 .worth-part .worth-old { grid-column: 1 / -1; font-size: var(--f-cap); color: var(--muted); margin-top: -4px; text-align: left; }
 
 /* ═══ grafici ═════════════════════════════════════════════════════════ */

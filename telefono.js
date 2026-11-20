@@ -605,7 +605,7 @@
       for (const m of d.mesi) {
         const old = Object.fromEntries((m.budget || []).map((b) => [b.nome, b]));
         m.budget = Object.entries(next).map(([nome, b]) => ({ nome, budget: b,
-          speso: m.categorie.find((c) => c.nome === nome)?.speso || 0, previsto: old[nome]?.previsto }));
+          speso: m.categorie.find((c) => c.nome === nome)?.speso || 0, previsto: old[nome]?.previsto, in_arrivo: old[nome]?.in_arrivo }));
       }
       for (const s of d.budget_suggeriti || []) s.attuale = next[s.nome] ?? null;
       d.obiettivo = { ...(d.obiettivo || {}), importo: goal };
